@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @Environment(Dictator.self) private var dictator
     @Environment(ModelStore.self) private var models
+    @Environment(KeyboardSession.self) private var keyboard
     @Environment(\.theme) private var theme
     @State private var sheet: Sheet?
     @State private var showScoreInfo = false
@@ -17,6 +18,7 @@ struct HomeView: View {
         @Bindable var dictator = dictator
         VStack(spacing: 0) {
             topBar
+            if keyboard.active { keyboardStrip }
             GeometryReader { geo in
                 ScrollView {
                     middle
@@ -71,6 +73,33 @@ struct HomeView: View {
                 .padding(.trailing, 12)
         }
         .frame(height: 56)
+    }
+
+    /// While the keyboard session runs: what it's doing, and how to end it.
+    private var keyboardStrip: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                MarkerDot().fill(keyboard.state == .listening ? theme.error : theme.main).frame(width: 10, height: 10)
+                Text(keyboardLine).font(.mono(13)).foregroundStyle(theme.text)
+                Spacer()
+                Button("end") { keyboard.end() }.font(.mono(13)).foregroundStyle(theme.sub)
+            }
+            if keyboard.state == .listening {
+                Text("go back to your app (top left) and talk, then tap the mic in the keyboard")
+                    .font(.mono(12)).foregroundStyle(theme.sub)
+            }
+        }
+        .padding(12)
+        .background(theme.subAlt.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 16)
+    }
+
+    private var keyboardLine: String {
+        switch keyboard.state {
+        case .listening: "keyboard: listening"
+        case .writing: "keyboard: writing it down…"
+        default: "keyboard is ready"
+        }
     }
 
     // MARK: Middle

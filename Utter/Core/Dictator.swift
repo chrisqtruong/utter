@@ -51,6 +51,8 @@ final class Dictator {
     var isRecording: Bool { if case .recording = phase { true } else { false } }
 
     func toggle() {
+        // the keyboard session holds the mic; the big button takes it back
+        if phase == .idle, AppModel.shared.keyboard.active { AppModel.shared.keyboard.end() }
         switch phase {
         case .idle: Task { await start() }
         case .recording: Task { await stop() }
@@ -207,7 +209,18 @@ final class Dictator {
         }
     }
 
-    private func process(_ samples: [Float], seconds: Double, source: String? = nil) async {
+    /// Turns keyboard audio into text the same way as a dictation, saves it to history,
+    /// and hands the text back (nil if no talking was heard).
+    func transcribeForKeyboard(_ samples: [Float]) async -> String? {
+        let seconds = Double(samples.count) / 16_000
+        guard seconds >= 0.6, SpeechCheck.hasSpeech(samples) else { return nil }
+        let before = latest?.id
+        await process(samples, seconds: seconds, source: "keyboard", copy: false)
+        guard let latest, latest.id != before else { return nil }
+        return latest.text
+    }
+
+    private func process(_ samples: [Float], seconds: Double, source: String? = nil, copy shouldCopy: Bool = true) async {
         phase = .transcribing
         // If the phone is locked, ask iOS for time to finish turning it into text.
         let background = UIApplication.shared.beginBackgroundTask()
@@ -234,7 +247,7 @@ final class Dictator {
             history.add(dictation)
             latest = dictation
             suggestedFix = nil
-            if UserDefaults.standard.object(forKey: "autoCopy") as? Bool ?? true { copy(dictation) }
+            if shouldCopy, UserDefaults.standard.object(forKey: "autoCopy") as? Bool ?? true { copy(dictation) }
             nameIfLong(dictation)
         } catch {
             message = "Something went wrong turning that into text. Try again."

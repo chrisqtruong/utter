@@ -25,6 +25,7 @@ targets:
     platform: iOS
     sources:
       - path: Utter
+      - path: Shared
     info:
       path: Utter/Info.plist
       properties:
@@ -41,6 +42,10 @@ targets:
           UIApplicationSupportsMultipleScenes: false
         # "Open in Utter" / share sheet for audio and video files
         LSSupportsOpeningDocumentsInPlace: false
+        # utter://keyboard: the Utter keyboard opens the app to start listening
+        CFBundleURLTypes:
+          - CFBundleURLName: com.christruong.utter
+            CFBundleURLSchemes: [utter]
         CFBundleDocumentTypes:
           - CFBundleTypeName: Audio or video
             LSHandlerRank: Alternate
@@ -58,6 +63,7 @@ targets:
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
     dependencies:
       - target: UtterBroadcast
+      - target: UtterKeyboard
       - package: WhisperKit
         product: WhisperKit
       - package: FluidAudio
@@ -88,3 +94,32 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.christruong.utter.broadcast
+  # The Utter keyboard: a mic button that has the app listen, and types what it hears.
+  UtterKeyboard:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Keyboard
+      - path: Shared
+      - path: Utter/Core/Theme.swift
+      - path: Utter/Views/Marker.swift
+    info:
+      path: Keyboard/Info.plist
+      properties:
+        CFBundleDisplayName: Utter
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.keyboard-service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController
+          NSExtensionAttributes:
+            IsASCIICapable: false
+            PrefersRightToLeft: false
+            PrimaryLanguage: en-US
+            RequestsOpenAccess: true
+    entitlements:
+      path: Keyboard/UtterKeyboard.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.christruong.utter
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.christruong.utter.keyboard

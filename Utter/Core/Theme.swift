@@ -12,6 +12,8 @@ struct Theme: Identifiable, Equatable {
     let text: Color
     let error: Color
     let isDark: Bool
+    /// [bg, main, sub, subAlt, text, error], for sharing with the keyboard
+    let hex: [String]
 
     var id: String { name }
 
@@ -20,6 +22,7 @@ struct Theme: Identifiable, Equatable {
         bg = Color(hex: hex[0]); main = Color(hex: hex[1]); sub = Color(hex: hex[2])
         subAlt = Color(hex: hex[3]); text = Color(hex: hex[4]); error = Color(hex: hex[5])
         isDark = Theme.luma(hex[0]) < 140
+        self.hex = hex
     }
 
     private static func luma(_ hex: String) -> Double {

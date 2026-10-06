@@ -10,9 +10,11 @@ final class AppModel {
     let vocabulary = Vocabulary()
     let voice = VoiceProfile()
     let dictator: Dictator
+    let keyboard: KeyboardSession
 
     private init() {
         dictator = Dictator(models: models, history: history, vocabulary: vocabulary, voice: voice)
+        keyboard = KeyboardSession(dictator: dictator)
         history.applyKeepLimit()
         #if DEBUG
         if CommandLine.arguments.contains("-seedDemo") { history.seedDemo() }
@@ -33,8 +35,12 @@ struct UtterApp: App {
                 .environment(app.dictator)
                 .environment(app.vocabulary)
                 .environment(app.voice)
+                .environment(app.keyboard)
                 // a file shared to Utter from another app ("Open in Utter")
-                .onOpenURL { url in Task { await app.dictator.transcribeFile(url) } }
+                .onOpenURL { url in
+                    if url.scheme == "utter" { app.keyboard.startFromKeyboard() }   // the Utter keyboard asked to listen
+                    else { Task { await app.dictator.transcribeFile(url) } }
+                }
                 .task {
                     await app.models.loadSelected()
                     #if DEBUG
@@ -65,6 +71,9 @@ private struct ThemedRoot: View {
         let theme = Themes.named(themeName, systemDark: systemScheme == .dark)
         HomeView()
             .environment(\.theme, theme)
+            // the keyboard draws itself in the same colors
+            .onAppear { KeyboardLink.store?.set(theme.hex, forKey: KeyboardLink.Key.theme) }
+            .onChange(of: theme.name) { _, _ in KeyboardLink.store?.set(theme.hex, forKey: KeyboardLink.Key.theme) }
             .tint(theme.main)
             .preferredColorScheme(themeName == Themes.autoName ? nil : (theme.isDark ? .dark : .light))
             // follows the iPhone's text size, up to a size the layouts can still hold

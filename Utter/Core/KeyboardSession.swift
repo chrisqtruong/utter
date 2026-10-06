@@ -1,0 +1,112 @@
+import Foundation
+import Observation
+
+/// The app's side of the Utter keyboard. When the keyboard opens the app (utter://keyboard),
+/// the app turns the mic on and keeps it on in the background for a while: a "session".
+/// During a session the keyboard's mic button starts and stops listening without leaving
+/// the app you're typing in, and the text comes back to the keyboard to type.
+@MainActor
+@Observable
+final class KeyboardSession {
+    private(set) var active = false
+    private(set) var state: KeyboardLink.State = .off
+
+    /// A session ends on its own after this long without use, to save battery.
+    static let idleTimeout: TimeInterval = 5 * 60
+
+    private let recorder = Recorder()
+    private let dictator: Dictator
+    private var heartbeat: Timer?
+    private var lastUse = Date()
+    private var toggleObserver: DarwinObserver?
+
+    init(dictator: Dictator) {
+        self.dictator = dictator
+        toggleObserver = DarwinObserver(KeyboardLink.toggle) { [weak self] in
+            Task { @MainActor in self?.toggle() }
+        }
+        recorder.onMustStop = { [weak self] _ in
+            Task { @MainActor in self?.end() }   // a call or another app took the mic
+        }
+        set(.off)
+    }
+
+    /// The keyboard opened the app: start a session and start listening right away.
+    func startFromKeyboard() {
+        Task {
+            guard await Recorder.requestPermission() else { note("Utter needs the microphone. Turn it on in Settings → Apps → Utter."); return }
+            if !active {
+                do { try recorder.startStandby() } catch { note("The microphone isn't available right now."); return }
+                active = true
+                startHeartbeat()
+            }
+            if state != .listening && state != .writing { beginCapture() }
+        }
+    }
+
+    /// From the keyboard's mic button, during a session.
+    func toggle() {
+        guard active else { return }
+        switch state {
+        case .ready: beginCapture()
+        case .listening: Task { await finish() }
+        default: break
+        }
+    }
+
+    func end() {
+        heartbeat?.invalidate(); heartbeat = nil
+        if active { _ = recorder.stop() }
+        active = false
+        KeyboardLink.store?.set(0, forKey: KeyboardLink.Key.alive)
+        set(.off)
+    }
+
+    // MARK: Steps
+
+    private func beginCapture() {
+        recorder.beginCapture()
+        lastUse = Date()
+        note(nil)
+        set(.listening)
+    }
+
+    private func finish() async {
+        let samples = recorder.endCapture()
+        set(.writing)
+        lastUse = Date()
+        if let text = await dictator.transcribeForKeyboard(samples) {
+            let store = KeyboardLink.store
+            store?.set(text, forKey: KeyboardLink.Key.result)
+            store?.set(UUID().uuidString, forKey: KeyboardLink.Key.resultID)
+            store?.set(Date().timeIntervalSince1970, forKey: KeyboardLink.Key.resultAt)
+            note(nil)
+        } else {
+            note("Didn't hear any talking.")
+        }
+        lastUse = Date()
+        set(.ready)
+    }
+
+    private func startHeartbeat() {
+        heartbeat?.invalidate()
+        let beat = { [weak self] in
+            guard let self else { return }
+            KeyboardLink.store?.set(Date().timeIntervalSince1970, forKey: KeyboardLink.Key.alive)
+            if self.state == .ready, Date().timeIntervalSince(self.lastUse) > Self.idleTimeout { self.end() }
+        }
+        beat()
+        heartbeat = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in Task { @MainActor in beat() } }
+    }
+
+    private func note(_ text: String?) {
+        KeyboardLink.store?.set(text, forKey: KeyboardLink.Key.note)
+        KeyboardLink.post(KeyboardLink.changed)
+    }
+
+    private func set(_ new: KeyboardLink.State) {
+        state = new
+        KeyboardLink.store?.set(new.rawValue, forKey: KeyboardLink.Key.state)
+        KeyboardLink.post(KeyboardLink.changed)
+    }
+}

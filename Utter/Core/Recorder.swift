@@ -7,6 +7,9 @@ final class Recorder {
     private let lock = NSLock()
     private var samples: [Float] = []
     private var peak: Float = 0
+    /// False while in standby: the mic stays on (so the app may listen from the background)
+    /// but nothing is kept. Used by the keyboard session.
+    private var capturing = true
 
     /// Called on the audio thread with a 0–1 loudness for the waveform.
     var onLevel: ((Float) -> Void)?
@@ -34,7 +37,7 @@ final class Recorder {
               let converter = AVAudioConverter(from: inFormat, to: outFormat)
         else { throw UtterError.micUnavailable }
 
-        lock.withLock { samples = []; peak = 0 }
+        lock.withLock { samples = []; peak = 0; capturing = true }
         let ratio = Self.sampleRate / inFormat.sampleRate
         let maxSamples = Int(Self.maxSeconds * Self.sampleRate)
 
@@ -54,11 +57,13 @@ final class Recorder {
             var sum: Float = 0
             for s in chunk { sum += s * s }
             let rms = chunk.isEmpty ? 0 : (sum / Float(chunk.count)).squareRoot()
-            let full = self.lock.withLock {
+            let (keeping, full) = self.lock.withLock { () -> (Bool, Bool) in
+                guard self.capturing else { return (false, false) }
                 if self.samples.count < maxSamples { self.samples += chunk }
                 self.peak = max(self.peak, rms)
-                return self.samples.count >= maxSamples
+                return (true, self.samples.count >= maxSamples)
             }
+            guard keeping else { return }
             if full { self.onMustStop?("Stopped at 30 minutes, the longest one take can be.") }
             // Speech sits around 0.01–0.2 RMS; stretch it so the bars move nicely.
             self.onLevel?(min(1, (rms * 12).squareRoot()))
@@ -70,6 +75,28 @@ final class Recorder {
             guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
             self?.onMustStop?("Stopped because something else needed the mic. What you said so far is saved.")
+        }
+    }
+
+    // MARK: Standby (keyboard session)
+
+    /// Turns the mic on without keeping anything yet.
+    func startStandby() throws {
+        try start()
+        lock.withLock { capturing = false; samples = [] }
+    }
+
+    /// Starts keeping audio, with the mic already on.
+    func beginCapture() {
+        lock.withLock { samples = []; peak = 0; capturing = true }
+    }
+
+    /// Hands back what was heard and goes back to standby; the mic stays on.
+    func endCapture() -> [Float] {
+        lock.withLock {
+            let out = samples
+            samples = []; capturing = false
+            return out
         }
     }
 
