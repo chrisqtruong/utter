@@ -72,8 +72,8 @@ private struct ThemedRoot: View {
         HomeView()
             .environment(\.theme, theme)
             // the keyboard draws itself in the same colors
-            .onAppear { KeyboardLink.store?.set(theme.hex, forKey: KeyboardLink.Key.theme) }
-            .onChange(of: theme.name) { _, _ in KeyboardLink.store?.set(theme.hex, forKey: KeyboardLink.Key.theme) }
+            .onAppear { KeyboardLink.write([KeyboardLink.Key.theme: theme.hex]) }
+            .onChange(of: theme.name) { _, _ in KeyboardLink.write([KeyboardLink.Key.theme: theme.hex]) }
             .tint(theme.main)
             .preferredColorScheme(themeName == Themes.autoName ? nil : (theme.isDark ? .dark : .light))
             // follows the iPhone's text size, up to a size the layouts can still hold

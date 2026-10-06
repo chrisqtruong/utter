@@ -6,7 +6,6 @@ import Foundation
 /// nudge each other with system-wide ("Darwin") notifications.
 enum KeyboardLink {
     static let group = "group.com.christruong.utter"
-    static var store: UserDefaults? { UserDefaults(suiteName: group) }
     static let openURL = URL(string: "utter://keyboard")!
 
     enum Key {
@@ -27,18 +26,42 @@ enum KeyboardLink {
     /// app → keyboard: something changed, read the store again
     static let changed = "com.christruong.utter.kb.changed"
 
+    /// app → keyboard: "got your tap", so the keyboard doesn't open the app
+    static let ack = "com.christruong.utter.kb.ack"
+
     static func post(_ name: String) {
         CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), CFNotificationName(name as CFString), nil, nil, true)
     }
 
+    // MARK: Shared status file
+    // A small file in the App Group, read fresh every time. (Shared UserDefaults can hand the
+    // keyboard an out-of-date value, which made it think no session was running.)
+
+    private static var fileURL: URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)?.appendingPathComponent("keyboard.plist")
+    }
+
+    static func read() -> [String: Any] {
+        guard let url = fileURL, let d = NSDictionary(contentsOf: url) as? [String: Any] else { return [:] }
+        return d
+    }
+
+    /// Merges these values into the file (nil removes a key). Only the app writes it.
+    static func write(_ changes: [String: Any?]) {
+        guard let url = fileURL else { return }
+        var d = read()
+        for (k, v) in changes { d[k] = v }
+        (d as NSDictionary).write(to: url, atomically: true)
+    }
+
     /// True while the app is running a keyboard session (it refreshes `alive` every second).
     static var sessionAlive: Bool {
-        guard let t = store?.double(forKey: Key.alive), t > 0 else { return false }
+        guard let t = read()[Key.alive] as? Double, t > 0 else { return false }
         return Date().timeIntervalSince1970 - t < 3
     }
 
     static var state: State {
-        State(rawValue: store?.string(forKey: Key.state) ?? "") ?? .off
+        State(rawValue: read()[Key.state] as? String ?? "") ?? .off
     }
 }
 

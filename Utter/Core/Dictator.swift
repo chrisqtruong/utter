@@ -51,8 +51,14 @@ final class Dictator {
     var isRecording: Bool { if case .recording = phase { true } else { false } }
 
     func toggle() {
-        // the keyboard session holds the mic; the big button takes it back
-        if phase == .idle, AppModel.shared.keyboard.active { AppModel.shared.keyboard.end() }
+        // During a keyboard session the big button works for the keyboard: it stops listening
+        // and the text goes to the keyboard. When the session is idle, the button takes the mic back.
+        let keyboard = AppModel.shared.keyboard
+        if keyboard.active {
+            if keyboard.state == .listening { keyboard.toggle(); return }
+            if keyboard.state == .writing { return }
+            if phase == .idle { keyboard.end() }
+        }
         switch phase {
         case .idle: Task { await start() }
         case .recording: Task { await stop() }

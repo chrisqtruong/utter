@@ -6,18 +6,25 @@ import Observation
 /// Keyboards can't use the microphone, so the first tap opens the Utter app, which listens
 /// in the background; after that the mic button starts and stops it from here, and the text
 /// the app hears comes back through the shared App Group store to be typed.
-final class KeyboardViewController: UIInputViewController {
+final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedback {
+    /// Lets key presses play the system click, when the person has keyboard clicks on.
+    var enableInputClicksWhenVisible: Bool { true }
+    private let tapFeel = UIImpactFeedbackGenerator(style: .light)
+    private let micFeel = UIImpactFeedbackGenerator(style: .medium)
+
     private let model = KeyboardModel()
     private var changed: DarwinObserver?
+    private var ackObserver: DarwinObserver?
+    private var waitingForAck = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
         model.hasFullAccess = hasFullAccess
         model.showGlobe = needsInputModeSwitchKey
-        model.onMic = { [weak self] in self?.micTapped() }
-        model.onType = { [weak self] text in self?.textDocumentProxy.insertText(text) }
-        model.onDelete = { [weak self] in self?.textDocumentProxy.deleteBackward() }
-        model.onGlobe = { [weak self] in self?.advanceToNextInputMode() }
+        model.onMic = { [weak self] in self?.micFeel.impactOccurred(); self?.micTapped() }
+        model.onType = { [weak self] text in self?.keyFeedback(); self?.textDocumentProxy.insertText(text) }
+        model.onDelete = { [weak self] in self?.keyFeedback(); self?.textDocumentProxy.deleteBackward() }
+        model.onGlobe = { [weak self] in self?.keyFeedback(); self?.advanceToNextInputMode() }
 
         let host = UIHostingController(rootView: KeyboardView(model: model))
         host.view.backgroundColor = .clear
@@ -34,6 +41,8 @@ final class KeyboardViewController: UIInputViewController {
         host.didMove(toParent: self)
 
         changed = DarwinObserver(KeyboardLink.changed) { [weak self] in self?.refresh() }
+        ackObserver = DarwinObserver(KeyboardLink.ack) { [weak self] in self?.waitingForAck = false }
+        tapFeel.prepare(); micFeel.prepare()
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -42,28 +51,41 @@ final class KeyboardViewController: UIInputViewController {
         refresh()
     }
 
+    /// A light tap and the system click, like the regular keyboard. (Keyboards can only make
+    /// haptics with Full Access on; the click follows the person's keyboard-clicks setting.)
+    private func keyFeedback() {
+        tapFeel.impactOccurred()
+        UIDevice.current.playInputClick()
+        tapFeel.prepare()
+    }
+
     /// Reads what the app has shared, and types any new text it heard.
     private func refresh() {
         model.load()
-        guard hasFullAccess, let store = KeyboardLink.store,
-              let id = store.string(forKey: KeyboardLink.Key.resultID),
-              id != store.string(forKey: KeyboardLink.Key.inserted),
-              let text = store.string(forKey: KeyboardLink.Key.result) else { return }
+        guard hasFullAccess else { return }
+        let d = KeyboardLink.read()
+        let mine = UserDefaults.standard   // the keyboard's own memory of what it already typed
+        guard let id = d[KeyboardLink.Key.resultID] as? String,
+              id != mine.string(forKey: KeyboardLink.Key.inserted),
+              let text = d[KeyboardLink.Key.result] as? String else { return }
+        mine.set(id, forKey: KeyboardLink.Key.inserted)
         // only type fresh results, so an old one never lands in the wrong place later
-        let age = Date().timeIntervalSince1970 - store.double(forKey: KeyboardLink.Key.resultAt)
-        store.set(id, forKey: KeyboardLink.Key.inserted)
+        let age = Date().timeIntervalSince1970 - (d[KeyboardLink.Key.resultAt] as? Double ?? 0)
         guard age < 120 else { return }
         let before = textDocumentProxy.documentContextBeforeInput ?? ""
         let spacer = before.isEmpty || before.hasSuffix(" ") || before.hasSuffix("\n") ? "" : " "
         textDocumentProxy.insertText(spacer + text)
     }
 
+    /// Asks the app to start or stop. If it answers, stay here; if not (no session), open it.
     private func micTapped() {
         guard hasFullAccess else { model.note = "Turn on Allow Full Access first (see below)."; return }
-        if KeyboardLink.sessionAlive {
-            KeyboardLink.post(KeyboardLink.toggle)
-        } else {
-            openApp()
+        waitingForAck = true
+        KeyboardLink.post(KeyboardLink.toggle)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self, self.waitingForAck else { return }
+            self.waitingForAck = false
+            self.openApp()
         }
     }
 
@@ -99,10 +121,10 @@ final class KeyboardModel {
     var onGlobe: () -> Void = {}
 
     func load() {
-        guard let store = KeyboardLink.store else { return }
-        state = KeyboardLink.sessionAlive ? KeyboardLink.state : .off
-        note = store.string(forKey: KeyboardLink.Key.note)
-        if let saved = store.stringArray(forKey: KeyboardLink.Key.theme), saved.count == 6 { colors = saved }
+        let d = KeyboardLink.read()
+        state = KeyboardLink.sessionAlive ? (KeyboardLink.State(rawValue: d[KeyboardLink.Key.state] as? String ?? "") ?? .off) : .off
+        note = d[KeyboardLink.Key.note] as? String
+        if let saved = d[KeyboardLink.Key.theme] as? [String], saved.count == 6 { colors = saved }
     }
 }
 

@@ -23,7 +23,11 @@ final class KeyboardSession {
     init(dictator: Dictator) {
         self.dictator = dictator
         toggleObserver = DarwinObserver(KeyboardLink.toggle) { [weak self] in
-            Task { @MainActor in self?.toggle() }
+            Task { @MainActor in
+                guard let self, self.active else { return }
+                KeyboardLink.post(KeyboardLink.ack)   // "got it": the keyboard stays where it is
+                self.toggle()
+            }
         }
         recorder.onMustStop = { [weak self] _ in
             Task { @MainActor in self?.end() }   // a call or another app took the mic
@@ -40,7 +44,10 @@ final class KeyboardSession {
                 active = true
                 startHeartbeat()
             }
-            if state != .listening && state != .writing { beginCapture() }
+            // opened again while listening (say the keyboard's tap couldn't reach us): treat it as stop.
+            // The text is typed when you go back to the keyboard.
+            if state == .listening { await finish() }
+            else if state != .writing { beginCapture() }
         }
     }
 
@@ -58,7 +65,7 @@ final class KeyboardSession {
         heartbeat?.invalidate(); heartbeat = nil
         if active { _ = recorder.stop() }
         active = false
-        KeyboardLink.store?.set(0, forKey: KeyboardLink.Key.alive)
+        KeyboardLink.write([KeyboardLink.Key.alive: 0.0])
         set(.off)
     }
 
@@ -76,11 +83,11 @@ final class KeyboardSession {
         set(.writing)
         lastUse = Date()
         if let text = await dictator.transcribeForKeyboard(samples) {
-            let store = KeyboardLink.store
-            store?.set(text, forKey: KeyboardLink.Key.result)
-            store?.set(UUID().uuidString, forKey: KeyboardLink.Key.resultID)
-            store?.set(Date().timeIntervalSince1970, forKey: KeyboardLink.Key.resultAt)
-            note(nil)
+            KeyboardLink.write([KeyboardLink.Key.result: text,
+                                KeyboardLink.Key.resultID: UUID().uuidString,
+                                KeyboardLink.Key.resultAt: Date().timeIntervalSince1970,
+                                KeyboardLink.Key.note: nil])
+            KeyboardLink.post(KeyboardLink.changed)
         } else {
             note("Didn't hear any talking.")
         }
@@ -92,7 +99,7 @@ final class KeyboardSession {
         heartbeat?.invalidate()
         let beat = { [weak self] in
             guard let self else { return }
-            KeyboardLink.store?.set(Date().timeIntervalSince1970, forKey: KeyboardLink.Key.alive)
+            KeyboardLink.write([KeyboardLink.Key.alive: Date().timeIntervalSince1970])
             if self.state == .ready, Date().timeIntervalSince(self.lastUse) > Self.idleTimeout { self.end() }
         }
         beat()
@@ -100,13 +107,13 @@ final class KeyboardSession {
     }
 
     private func note(_ text: String?) {
-        KeyboardLink.store?.set(text, forKey: KeyboardLink.Key.note)
+        KeyboardLink.write([KeyboardLink.Key.note: text])
         KeyboardLink.post(KeyboardLink.changed)
     }
 
     private func set(_ new: KeyboardLink.State) {
         state = new
-        KeyboardLink.store?.set(new.rawValue, forKey: KeyboardLink.Key.state)
+        KeyboardLink.write([KeyboardLink.Key.state: new.rawValue])
         KeyboardLink.post(KeyboardLink.changed)
     }
 }
