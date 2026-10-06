@@ -1,0 +1,90 @@
+name: Utter
+options:
+  bundleIdPrefix: com.christruong
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+packages:
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit
+    from: 1.1.0
+  FluidAudio:
+    url: https://github.com/FluidInference/FluidAudio
+    from: 0.17.5
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: NW2J8N6BGR
+    TARGETED_DEVICE_FAMILY: "1"
+targets:
+  Utter:
+    type: application
+    platform: iOS
+    sources:
+      - path: Utter
+    info:
+      path: Utter/Info.plist
+      properties:
+        CFBundleDisplayName: Utter
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSMicrophoneUsageDescription: Utter listens only while you're dictating. Your voice is turned into text on this iPhone and never leaves it.
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        # Keeps listening when the screen locks or you switch apps, so long notes can be dictated with the phone in a pocket.
+        UIBackgroundModes: [audio]
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        # "Open in Utter" / share sheet for audio and video files
+        LSSupportsOpeningDocumentsInPlace: false
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Audio or video
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [public.audio, public.movie, public.mpeg-4-audio, com.apple.m4a-audio]
+    entitlements:
+      path: Utter/Utter.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.christruong.utter
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.christruong.utter
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIcon-light AppIcon-nord AppIcon-miami AppIcon-sweden AppIcon-matrix
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
+    dependencies:
+      - target: UtterBroadcast
+      - package: WhisperKit
+        product: WhisperKit
+      - package: FluidAudio
+        product: FluidAudio
+    scheme:
+      # Testing shortcuts (debug builds only). Toggle in Product > Scheme > Edit Scheme > Run > Arguments.
+      commandLineArguments:
+        "-seedDemo": false
+  # Screen recording add-on: captures what's playing on the phone for Utter to transcribe.
+  UtterBroadcast:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Broadcast
+    info:
+      path: Broadcast/Info.plist
+      properties:
+        CFBundleDisplayName: Utter
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.broadcast-services-upload
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).SampleHandler
+          RPBroadcastProcessMode: RPBroadcastProcessModeSampleBuffer
+    entitlements:
+      path: Broadcast/UtterBroadcast.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.christruong.utter
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.christruong.utter.broadcast
