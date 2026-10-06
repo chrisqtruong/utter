@@ -6,6 +6,8 @@ Dictation for iPhone, built for long thoughts: monologues, voice notes, journali
   <img src="docs/screenshots/utter-screens.png" width="900" alt="Three Utter screens in the serika dark theme: a finished two-paragraph note with a match score of 96, the searchable history with date filters, and settings with weekly stats and hand-drawn toggles">
 </p>
 
+**Free, completely.** No price, no subscription, no account, no ads, no tracking. Your recordings, notes, dictionary and stats stay on your own phone, and they're yours. The code is open: use it, change it, build on it. The speech models are free too (NVIDIA's Parakeet under CC-BY-4.0, OpenAI's Whisper under MIT), and the writing help uses Apple Intelligence, which is built into the phone.
+
 Inspired by [SpeakType](https://github.com/karansinghgit/speaktype), the free dictation app for Mac, Windows and Linux. Themes come from [Monkeytype](https://github.com/monkeytypegame/monkeytype) by way of [Vox2](https://github.com/chrisqtruong/vox2). The hand-drawn marks come from [chrisqtruong.github.io](https://chrisqtruong.github.io).
 
 ## What it does
@@ -44,9 +46,12 @@ Inspired by [SpeakType](https://github.com/karansinghgit/speaktype), the free di
 **Look**
 - **37 themes and 6 app icons**, a hand-drawn marker style throughout, and text that follows your iPhone's text size.
 
-## Privacy
+## Free and private
 
-Everything happens on the phone. Recordings are thrown away as soon as they're turned into text; only the text is kept. No account, no tracking. The internet is only used to download speech models when you ask. The one exception: audio from "what's playing" is saved on the phone while it's captured (the screen recording add-on has too little memory to run a speech model), then deleted as soon as it's transcribed.
+- **Free forever.** Utter costs nothing and never will. There's no paid tier, no account and no ads.
+- **Your data stays yours.** Everything happens on the phone: speech becomes text there, and recordings are thrown away as soon as they're turned into text. Notes, the dictionary, stats and settings live only on your device; export or delete them any time. Nothing is collected or sent anywhere. The internet is only used to download speech models when you ask.
+- **One exception, spelled out:** audio from "what's playing" is saved on the phone while it's captured (the screen recording add-on has too little memory to run a speech model), then deleted as soon as it's turned into text.
+- **Open to build on.** The code is GPL-3.0: anyone can use it, study it, change it and share their own version, as long as what they share stays open too.
 
 ## Roadmap
 
@@ -86,4 +91,6 @@ Libraries: [WhisperKit](https://github.com/argmaxinc/WhisperKit) (MIT) and [Flui
 
 ## License
 
-[GPL-3.0](LICENSE), like Vox2, since the color themes come from Monkeytype (GPL-3.0).
+[GPL-3.0](LICENSE), like Vox2, since the color themes come from Monkeytype (GPL-3.0). Free to use, change and share; versions you share stay open too.
+
+Utter isn't on the App Store yet; for now you build it onto your own phone with Xcode (see above), which is free with an Apple account.
