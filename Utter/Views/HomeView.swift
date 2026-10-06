@@ -52,6 +52,12 @@ struct HomeView: View {
             NavigationStack { ScoreInfoView(inSheet: true) }.environment(\.theme, theme).tint(theme.main).presentationDetents([.medium, .large])
         }
         .onChange(of: dictator.latest?.id) { _, _ in editing = false }
+        // the keyboard opened Utter: close history, settings or anything else, so the way back is one tap
+        .onChange(of: keyboard.openedFromKeyboard) { _, _ in
+            sheet = nil
+            showScoreInfo = false
+            editing = false
+        }
         .onChange(of: dictator.showModelPicker) { _, show in
             if show { sheet = .models; dictator.showModelPicker = false }
         }

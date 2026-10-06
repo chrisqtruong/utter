@@ -12,6 +12,8 @@ final class KeyboardSession {
     private(set) var state: KeyboardLink.State = .off
     /// True right after the keyboard opened the app, until you leave: home shows the way back.
     private(set) var showBackHint = false
+    /// Goes up each time the keyboard opens Utter, so home can close any open page right away.
+    private(set) var openedFromKeyboard = 0
 
     /// The mic stays on (keeping nothing) this long after a dictation, so the keyboard can start
     /// the next one without opening the app: iOS only lets an app turn the mic on while it's on screen.
@@ -43,6 +45,7 @@ final class KeyboardSession {
     func startFromKeyboard() {
         KeyboardLink.log("app", "opened from keyboard, active=\(active) state=\(state.rawValue)")
         showBackHint = true
+        openedFromKeyboard += 1
         Task {
             guard await Recorder.requestPermission() else { note("Utter needs the microphone. Turn it on in Settings → Apps → Utter."); return }
             if !active {
@@ -87,6 +90,7 @@ final class KeyboardSession {
 
     private func beginCapture() {
         recorder.beginCapture()
+        KeyboardLink.log("app", "recording started")
         lastUse = Date()
         note(nil)
         set(.listening)
