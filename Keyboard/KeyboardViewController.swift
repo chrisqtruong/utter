@@ -47,10 +47,26 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         tapFeel.prepare(); micFeel.prepare()
     }
 
+    /// iOS can keep an old copy of the keyboard alive (from before you switched apps) next to the
+    /// one on screen. Only the copy on screen may type, or the old one would "type" into nothing.
+    private var onScreen = false
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        onScreen = true
         model.hasFullAccess = hasFullAccess
         refresh()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        onScreen = true
+        refresh()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        onScreen = false
     }
 
     /// A light tap and the system click, like the regular keyboard. (Keyboards can only make
@@ -65,7 +81,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     /// Reads what the app has shared, and types any new text it heard.
     private func refresh() {
         model.load()
-        guard hasFullAccess else { return }
+        guard hasFullAccess, onScreen, view.window != nil else { return }
         let d = KeyboardLink.read()
         let mine = UserDefaults.standard   // the keyboard's own memory of what it already typed
         KeyboardLink.log("kb", "refresh: state=\(d[KeyboardLink.Key.state] as? String ?? "-") resultID=\((d[KeyboardLink.Key.resultID] as? String ?? "-").prefix(8)) inserted=\((mine.string(forKey: KeyboardLink.Key.inserted) ?? "-").prefix(8)) keys=\(d.count)")
