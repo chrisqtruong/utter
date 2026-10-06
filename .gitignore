@@ -4,3 +4,5 @@ DerivedData/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 .DS_Store
 Utter.xcodeproj/
+build-sim/
+keyboard-log.txt
