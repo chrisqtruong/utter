@@ -13,14 +13,23 @@ struct StorageView: View {
 
     var body: some View {
         Page(title: "storage", showsDone: false) {
-            HStack(alignment: .firstTextBaseline, spacing: 22) {
-                figure(formatMB(appSizeMB), "the app")
-                figure(formatMB(models.totalDiskMB), "speech models")
-                figure(formatMB(history.diskMB), "\(history.items.count) notes")
+            PageSection(label: "on this iphone · \(formatMB(appSizeMB + models.totalDiskMB + history.diskMB))",
+                        note: "Models take almost all the room. Notes are tiny, even thousands of them.") {
+                let parts: [(String, Double, Color)] = [
+                    ("speech models", models.totalDiskMB, theme.main),
+                    ("the app", appSizeMB, theme.sub),
+                    ("\(history.items.count) notes", history.diskMB, theme.text),
+                ]
+                SizeBar(parts: parts.map { ($0.1, $0.2) }).frame(height: 13).padding(.bottom, 2)
+                ForEach(parts, id: \.0) { name, mb, color in
+                    HStack(spacing: 10) {
+                        MarkerDot().fill(color).frame(width: 10, height: 10)
+                        Text(name).font(.ui(16)).foregroundStyle(theme.text)
+                        Spacer(minLength: 12)
+                        Text(formatMB(mb)).font(.mono(14)).foregroundStyle(theme.sub)
+                    }
+                }
             }
-            Text("Speech models take almost all the room. Notes are tiny, even thousands of them, so removing a model you don't use frees far more space than deleting notes.")
-                .font(.ui(14)).foregroundStyle(theme.sub)
-                .fixedSize(horizontal: false, vertical: true)
 
             PageSection(label: "speech models") {
                 NavigationLink { ModelsView() } label: { PageRow(title: "Remove or add models", value: formatMB(models.totalDiskMB)) }
@@ -56,10 +65,29 @@ struct StorageView: View {
 
     private func label(_ days: Int) -> String { keepOptions.first { $0.0 == days }?.1 ?? "\(days) days" }
 
-    private func figure(_ value: String, _ caption: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value).font(.mono(24, .semibold)).foregroundStyle(theme.text)
-            Text(caption).font(.mono(12)).foregroundStyle(theme.sub)
+}
+
+/// One hand-drawn bar split by size. Tiny parts still get a sliver, so they show up.
+private struct SizeBar: View {
+    let parts: [(Double, Color)]
+
+    var body: some View {
+        GeometryReader { geo in
+            let total = max(parts.reduce(0) { $0 + $1.0 }, 0.001)
+            let gap: CGFloat = 3, sliver: CGFloat = 6
+            let room = geo.size.width - gap * CGFloat(parts.count - 1)
+            // tiny parts get a sliver; the rest of the room is shared by size among the others
+            let small = parts.filter { room * $0.0 / total < sliver }
+            let bigTotal = max(total - small.reduce(0) { $0 + $1.0 }, 0.001)
+            let bigRoom = room - sliver * CGFloat(small.count)
+            HStack(spacing: gap) {
+                ForEach(parts.indices, id: \.self) { i in
+                    let share = room * parts[i].0 / total
+                    MarkerSwipe().fill(parts[i].1)
+                        .frame(width: share < sliver ? sliver : bigRoom * parts[i].0 / bigTotal)
+                }
+            }
+            .frame(width: geo.size.width, alignment: .leading)
         }
     }
 }

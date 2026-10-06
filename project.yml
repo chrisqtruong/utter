@@ -42,6 +42,8 @@ targets:
           UIApplicationSupportsMultipleScenes: false
         # "Open in Utter" / share sheet for audio and video files
         LSSupportsOpeningDocumentsInPlace: false
+        # apps Utter can jump back to after the keyboard opens it (Settings → Keyboard)
+        LSApplicationQueriesSchemes: [mobilenotes, sms, message, x-apple-reminderkit, whatsapp, sgnl, tg, slack, discord, googlegmail, ms-outlook, msteams, obsidian, notion, bear, drafts, dayone, googledocs, instagram]
         # utter://keyboard: the Utter keyboard opens the app to start listening
         CFBundleURLTypes:
           - CFBundleURLName: com.christruong.utter

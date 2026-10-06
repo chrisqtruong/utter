@@ -17,12 +17,45 @@ struct Theme: Identifiable, Equatable {
 
     var id: String { name }
 
-    init(_ name: String, _ hex: [String]) {
+    init(_ name: String, _ palette: [String]) {
+        var hex = palette
+        hex[2] = Theme.readable(hex[2], on: hex[0], toward: hex[4])
         self.name = name
         bg = Color(hex: hex[0]); main = Color(hex: hex[1]); sub = Color(hex: hex[2])
         subAlt = Color(hex: hex[3]); text = Color(hex: hex[4]); error = Color(hex: hex[5])
         isDark = Theme.luma(hex[0]) < 140
         self.hex = hex
+    }
+
+    /// Some palettes make quiet text too faint to read on a phone (olivia's is barely there).
+    /// Nudge it toward the main text color until it reads clearly, keeping its hue.
+    static let minContrast = 3.5
+
+    private static func readable(_ sub: String, on bg: String, toward text: String) -> String {
+        let s = rgb(sub), t = rgb(text), b = rgb(bg)
+        var mix = 0.0
+        while mix < 1, contrast(blend(s, t, mix), b) < minContrast { mix += 0.05 }
+        let c = blend(s, t, min(mix, 1))
+        return String(format: "#%02x%02x%02x", Int(c.0.rounded()), Int(c.1.rounded()), Int(c.2.rounded()))
+    }
+
+    private static func rgb(_ hex: String) -> (Double, Double, Double) {
+        let n = Int(hex.dropFirst(), radix: 16) ?? 0
+        return (Double(n >> 16), Double((n >> 8) & 255), Double(n & 255))
+    }
+
+    private static func blend(_ a: (Double, Double, Double), _ b: (Double, Double, Double), _ t: Double) -> (Double, Double, Double) {
+        (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t, a.2 + (b.2 - a.2) * t)
+    }
+
+    /// WCAG contrast ratio: 1 (none) to 21 (black on white).
+    private static func contrast(_ a: (Double, Double, Double), _ b: (Double, Double, Double)) -> Double {
+        func lum(_ c: (Double, Double, Double)) -> Double {
+            func ch(_ v: Double) -> Double { let x = v / 255; return x <= 0.03928 ? x / 12.92 : pow((x + 0.055) / 1.055, 2.4) }
+            return 0.2126 * ch(c.0) + 0.7152 * ch(c.1) + 0.0722 * ch(c.2)
+        }
+        let la = lum(a), lb = lum(b)
+        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
     }
 
     private static func luma(_ hex: String) -> Double {

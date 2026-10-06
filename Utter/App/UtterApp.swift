@@ -53,6 +53,7 @@ struct UtterApp: App {
             case .active:
                 app.models.refresh()
                 app.dictator.appBecameActive()
+                app.keyboard.cameBack()
                 Task { await app.dictator.processCaptures() }
             case .background:
                 app.dictator.appWentToBackground()

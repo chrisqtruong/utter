@@ -20,6 +20,7 @@ Inspired by [SpeakType](https://github.com/karansinghgit/speaktype), the free di
 
 **Keyboard (early)**
 - **Dictate into any app.** Add the Utter keyboard (Settings → General → Keyboard → Keyboards, then turn on Allow Full Access). Tap its mic: the first time, Utter opens and starts listening; go back with the "← Back" link and talk. Tap again and the text types itself in. For two minutes after that, the mic starts and stops right from the keyboard (the mic dot stays on meanwhile, since iOS only lets an app turn the mic on while it is on screen).
+- **Go back to.** In Settings → Keyboard, pick the app you dictate into most (Notes, Messages, Slack…). After the keyboard opens Utter, it starts listening and jumps straight back there. iOS doesn't tell apps where you came from, so it's one fixed choice.
 - **How:** iOS doesn't let keyboards use the microphone, so the app listens in a background session and passes the text back through a shared App Group file. The keyboard asks the app to start or stop, and only opens it if no session is running.
 
 **Text**
@@ -31,7 +32,7 @@ Inspired by [SpeakType](https://github.com/karansinghgit/speaktype), the free di
 - **Dictionary.** "When it writes *vox two*, write *Vox2*." Fix one word in a note and Utter offers to remember it.
 
 **Models**
-- **Pick your model.** Parakeet v3 (fast and accurate; English and 24 European languages), Parakeet Mini (smallest), or Whisper Base, Small and Large v3 (99 languages). Each shows its pros and cons. Download only the ones you want, and remove them to free space.
+- **Pick your model.** Parakeet v3 (fast and accurate; English and 24 European languages), Parakeet Mini (smallest), or Whisper Base, Small and Large v3 Turbo (99 languages). Each shows its pros and cons. Download only the ones you want, and remove them to free space.
 - **Voice check.** Read a short passage and your names once. Utter shows which model hears you best, adds misheard names to your dictionary, and tunes the match score to your voice. See [how it works](docs/voice-check.md).
 
 **Other sources**
@@ -55,7 +56,7 @@ Inspired by [SpeakType](https://github.com/karansinghgit/speaktype), the free di
 
 ## Roadmap
 
-- **Keyboard: polish.** A basic Utter keyboard works now (below). Next: letter keys, hold to delete, and a smoother first hand-off.
+- **Keyboard: polish.** A basic Utter keyboard works now (see above). Next: letter keys, hold to delete, and a smoother first hand-off.
 
 ## Build it
 

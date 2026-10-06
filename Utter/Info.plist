@@ -47,6 +47,28 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>mobilenotes</string>
+		<string>sms</string>
+		<string>message</string>
+		<string>x-apple-reminderkit</string>
+		<string>whatsapp</string>
+		<string>sgnl</string>
+		<string>tg</string>
+		<string>slack</string>
+		<string>discord</string>
+		<string>googlegmail</string>
+		<string>ms-outlook</string>
+		<string>msteams</string>
+		<string>obsidian</string>
+		<string>notion</string>
+		<string>bear</string>
+		<string>drafts</string>
+		<string>dayone</string>
+		<string>googledocs</string>
+		<string>instagram</string>
+	</array>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
 	<key>NSMicrophoneUsageDescription</key>

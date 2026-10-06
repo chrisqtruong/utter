@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage("removeFillers") private var removeFillers = true
     @AppStorage("showShaky") private var showShaky = true
     @AppStorage("aiTitles") private var aiTitles = true
+    @AppStorage(ReturnApp.storageKey) private var returnID = ""   // so the keyboard row updates
 
     var body: some View {
         NavigationStack {
@@ -65,6 +66,9 @@ struct SettingsView: View {
                 PageSection(label: "more") {
                     NavigationLink { StorageView() } label: {
                         PageRow(title: "Storage")
+                    }
+                    NavigationLink { KeyboardSettingsView() } label: {
+                        PageRow(title: "Keyboard", value: ReturnApp.chosen.map { "back to \($0.name.lowercased())" })
                     }
                     NavigationLink { ActionButtonView() } label: { PageRow(title: "Action button") }
                     NavigationLink { ScoreInfoView() } label: { PageRow(title: "How the match score works") }

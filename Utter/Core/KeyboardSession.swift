@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import Observation
 
 /// The app's side of the Utter keyboard. When the keyboard opens the app (utter://keyboard),
@@ -12,8 +13,10 @@ final class KeyboardSession {
     private(set) var state: KeyboardLink.State = .off
     /// True right after the keyboard opened the app, until you leave: home shows the way back.
     private(set) var showBackHint = false
-    /// Goes up each time the keyboard opens Utter, so home can close any open page right away.
+    /// Goes up each time the keyboard opens Utter, or you come back to Utter while the mic is on
+    /// (say, by tapping the mic in the Dynamic Island), so home can close any open page and show "end".
     private(set) var openedFromKeyboard = 0
+    private var wasAway = false
 
     /// The mic stays on (keeping nothing) this long after a dictation, so the keyboard can start
     /// the next one without opening the app: iOS only lets an app turn the mic on while it's on screen.
@@ -70,7 +73,17 @@ final class KeyboardSession {
             } else if state != .writing {
                 beginCapture()
             }
+            await jumpBack()
         }
+    }
+
+    /// If you picked an app in Settings → Keyboard, go back to it, so you can keep talking there.
+    /// The short wait lets the mic settle first; listening carries on in the background.
+    private func jumpBack() async {
+        guard let app = ReturnApp.chosen, let url = app.url else { return }
+        try? await Task.sleep(for: .milliseconds(350))
+        KeyboardLink.log("app", "going back to \(app.name)")
+        await UIApplication.shared.open(url)
     }
 
     /// From the keyboard's mic button, during a session.
@@ -84,7 +97,13 @@ final class KeyboardSession {
     }
 
     /// You went back to the other app (or anywhere else).
-    func leftApp() { showBackHint = false }
+    func leftApp() { showBackHint = false; wasAway = true }
+
+    /// Back in Utter from another app during a session: go to home, where "end" is.
+    func cameBack() {
+        if active && wasAway { openedFromKeyboard += 1 }
+        wasAway = false
+    }
 
     func end() {
         showBackHint = false
