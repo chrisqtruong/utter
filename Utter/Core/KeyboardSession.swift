@@ -13,8 +13,9 @@ final class KeyboardSession {
     /// True right after the keyboard opened the app, until you leave: home shows the way back.
     private(set) var showBackHint = false
 
-    /// A session ends on its own after this long without use, to save battery.
-    static let idleTimeout: TimeInterval = 5 * 60
+    /// The mic stays on (keeping nothing) this long after a dictation, so the keyboard can start
+    /// the next one without opening the app: iOS only lets an app turn the mic on while it's on screen.
+    static let idleTimeout: TimeInterval = 2 * 60
 
     private let recorder = Recorder()
     private let dictator: Dictator

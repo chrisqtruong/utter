@@ -80,25 +80,30 @@ struct HomeView: View {
     }
 
     /// While the keyboard session runs: what it's doing, and how to end it.
-    private var keyboardStrip: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    /// While the keyboard is listening: a clear strip. Between dictations: one quiet line that says
+    /// why the mic dot is still on, and a way to turn it off.
+    @ViewBuilder private var keyboardStrip: some View {
+        if keyboard.state == .listening || keyboard.state == .writing {
             HStack(spacing: 8) {
                 MarkerDot().fill(keyboard.state == .listening ? theme.error : theme.main).frame(width: 10, height: 10)
-                Text(keyboardLine).font(.mono(13)).foregroundStyle(theme.text)
+                Text(keyboard.state == .listening ? "keyboard: listening" : "keyboard: writing it down…")
+                    .font(.mono(13)).foregroundStyle(theme.text)
                 Spacer()
                 Button("end") { keyboard.end() }.font(.mono(13)).foregroundStyle(theme.sub)
             }
-        }
-        .padding(12)
-        .background(theme.subAlt.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 16)
-    }
-
-    private var keyboardLine: String {
-        switch keyboard.state {
-        case .listening: "keyboard: listening"
-        case .writing: "keyboard: writing it down…"
-        default: "keyboard is ready"
+            .padding(12)
+            .background(theme.subAlt.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal, 16)
+        } else {
+            HStack(spacing: 6) {
+                Text("mic on for the keyboard").foregroundStyle(theme.sub)
+                Text("·").foregroundStyle(theme.sub.opacity(0.6))
+                Button("end") { keyboard.end() }.foregroundStyle(theme.text)
+                Spacer()
+            }
+            .font(.mono(12))
+            .padding(.horizontal, 24)
+            .padding(.bottom, 4)
         }
     }
 
@@ -318,8 +323,8 @@ private struct BackHint: View {
     var body: some View {
         HStack(alignment: .bottom, spacing: 6) {
             MarkerArrow()
-                .stroke(theme.main, style: StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round))
-                .frame(width: 30, height: 30)
+                .stroke(theme.main, style: StrokeStyle(lineWidth: 3.8, lineCap: .round, lineJoin: .round))
+                .frame(width: 34, height: 34)
                 .offset(x: nudge ? -3 : 1, y: nudge ? -4 : 1)
             Text("back to your app")
                 .font(.mono(13))

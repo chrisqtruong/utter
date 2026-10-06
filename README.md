@@ -17,7 +17,7 @@ Inspired by [SpeakType](https://github.com/karansinghgit/speaktype), the free di
 - **Knows when nothing was said.** An accidental tap or silence comes back right away, without waking the model.
 
 **Keyboard (early)**
-- **Dictate into any app.** Add the Utter keyboard (Settings → General → Keyboard → Keyboards, then turn on Allow Full Access). Tap its mic: the first time, Utter opens and starts listening; go back with the "← Back" link and talk. Tap again and the text types itself in. For five minutes after that, the mic starts and stops right from the keyboard.
+- **Dictate into any app.** Add the Utter keyboard (Settings → General → Keyboard → Keyboards, then turn on Allow Full Access). Tap its mic: the first time, Utter opens and starts listening; go back with the "← Back" link and talk. Tap again and the text types itself in. For two minutes after that, the mic starts and stops right from the keyboard (the mic dot stays on meanwhile, since iOS only lets an app turn the mic on while it is on screen).
 - **How:** iOS doesn't let keyboards use the microphone, so the app listens in a background session and passes the text back through a shared App Group file. The keyboard asks the app to start or stop, and only opens it if no session is running.
 
 **Text**
