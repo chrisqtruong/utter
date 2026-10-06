@@ -38,7 +38,7 @@ struct UtterApp: App {
                 .environment(app.keyboard)
                 // a file shared to Utter from another app ("Open in Utter")
                 .onOpenURL { url in
-                    if url.scheme == "utter" { app.keyboard.startFromKeyboard(link: url) }   // the Utter keyboard asked to listen
+                    if url.scheme == "utter" { app.keyboard.startFromKeyboard() }   // the Utter keyboard asked to listen
                     else { Task { await app.dictator.transcribeFile(url) } }
                 }
                 .task {

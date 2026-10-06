@@ -62,7 +62,7 @@ struct HomeView: View {
     private var topBar: some View {
         HStack(spacing: 0) {
             if keyboard.showBackHint {
-                BackHint(app: keyboard.hostName).padding(.leading, 14)
+                BackHint().padding(.leading, 14)
             } else {
                 HStack(spacing: 2) {
                     Text("utter").foregroundStyle(theme.text)
@@ -96,7 +96,7 @@ struct HomeView: View {
             .padding(.horizontal, 16)
         } else {
             HStack(spacing: 6) {
-                Text("mic on for the keyboard").foregroundStyle(theme.sub)
+                Text("mic on standby · not recording").foregroundStyle(theme.sub)
                 Text("·").foregroundStyle(theme.sub.opacity(0.6))
                 Button("end") { keyboard.end() }.foregroundStyle(theme.text)
                 Spacer()
@@ -317,7 +317,6 @@ struct HomeView: View {
 /// Points at iOS's own "◀ Notes" link at the top left, the only way back to the app you came from.
 /// Apps can't jump back by themselves, so this just makes that link hard to miss.
 private struct BackHint: View {
-    var app: String?
     @Environment(\.theme) private var theme
     @State private var nudge = false
 
@@ -327,7 +326,7 @@ private struct BackHint: View {
                 .stroke(theme.main, style: StrokeStyle(lineWidth: 3.8, lineCap: .round, lineJoin: .round))
                 .frame(width: 34, height: 34)
                 .offset(x: nudge ? -3 : 1, y: nudge ? -4 : 1)
-            Text("back to \(app ?? "your app")")
+            Text("back to your app")
                 .font(.mono(13))
                 .foregroundStyle(theme.text)
                 .padding(.bottom, 1)

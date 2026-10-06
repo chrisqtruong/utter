@@ -84,27 +84,16 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         guard hasFullAccess else { model.note = "Turn on Allow Full Access first (see below)."; return }
         waitingForAck = true
         KeyboardLink.post(KeyboardLink.toggle)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
             guard let self, self.waitingForAck else { return }
             self.waitingForAck = false
             self.openApp()
         }
     }
 
-    /// The app showing this keyboard, from a private property iOS used to fill in. Checked first; nil if gone.
-    private var hostBundleID: String? {
-        let selector = NSSelectorFromString("_hostBundleID")
-        guard let parent = parent as NSObject?, parent.responds(to: selector) else { return nil }
-        return parent.perform(selector)?.takeUnretainedValue() as? String
-    }
-
     /// Keyboards can't open apps through the normal API, so ask the app object up the responder chain.
     private func openApp() {
-        // tell Utter which app this is, so it can send you straight back (iOS stopped sharing this in 26.4;
-        // then Utter tries another way)
-        var parts = URLComponents(url: KeyboardLink.openURL, resolvingAgainstBaseURL: false)!
-        if let host = hostBundleID { parts.queryItems = [URLQueryItem(name: "host", value: host)] }
-        let url = (parts.url ?? KeyboardLink.openURL) as NSURL
+        let url = KeyboardLink.openURL as NSURL
         let selector = NSSelectorFromString("openURL:options:completionHandler:")
         var responder: UIResponder? = self
         while let current = responder {
