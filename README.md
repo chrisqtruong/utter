@@ -16,6 +16,10 @@ Inspired by [SpeakType](https://github.com/karansinghgit/speaktype), the free di
 - **Action button.** One press opens Utter and starts listening; press again to stop. Back Tap works too.
 - **Knows when nothing was said.** An accidental tap or silence comes back right away, without waking the model.
 
+**Keyboard (early)**
+- **Dictate into any app.** Add the Utter keyboard (Settings → General → Keyboard → Keyboards, then turn on Allow Full Access). Tap its mic: the first time, Utter opens and starts listening; go back with the "← Back" link and talk. Tap again and the text types itself in. For five minutes after that, the mic starts and stops right from the keyboard.
+- **How:** iOS doesn't let keyboards use the microphone, so the app listens in a background session and passes the text back through a shared App Group file. The keyboard asks the app to start or stop, and only opens it if no session is running.
+
 **Text**
 - **Reads like notes.** Paragraphs start where you paused at the end of a sentence, and ums and uhs are removed.
 - **Match score.** How sure the model was, 0 to 100, with shaky words underlined. See [how it works](docs/match-score.md).
@@ -46,7 +50,7 @@ Everything happens on the phone. Recordings are thrown away as soon as they're t
 
 ## Roadmap
 
-- **iOS keyboard.** A Utter key right in the keyboard, so you can dictate into any app without switching. iOS doesn't let keyboards use the microphone and gives them very little memory, so the keyboard would hand off to the app to listen, then bring the text back.
+- **Keyboard: polish.** A basic Utter keyboard works now (below). Next: letter keys, hold to delete, and a smoother first hand-off.
 
 ## Build it
 
@@ -73,6 +77,8 @@ Debug launch arguments (Product → Scheme → Edit Scheme → Run → Arguments
 | `Utter/Views` | screens, plus `Marker.swift` (the hand-drawn shapes) and `Page.swift` (the settings building blocks) |
 | `Utter/Intents` | the Action button and Shortcuts action |
 | `Broadcast` | the screen recording add-on for "what's playing" |
+| `Keyboard` | the Utter keyboard (mic, globe, space, delete, return) |
+| `Shared` | how the app and keyboard talk (`KeyboardLink`) |
 | `Tools` | the app icon generator |
 | `docs/` | explainers for the match score and voice check |
 

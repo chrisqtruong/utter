@@ -28,6 +28,9 @@ final class Recorder {
     func start() throws {
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
+        // iOS mutes haptics and system sounds while recording; keep them on, so the Utter keyboard's
+        // taps (and the rest of the phone) still feel normal during a keyboard session
+        try? session.setAllowHapticsAndSystemSoundsDuringRecording(true)
         try session.setActive(true)
 
         let input = engine.inputNode

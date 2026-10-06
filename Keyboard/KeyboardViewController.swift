@@ -1,4 +1,5 @@
 import UIKit
+import AudioToolbox
 import SwiftUI
 import Observation
 
@@ -21,7 +22,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         super.viewDidLoad()
         model.hasFullAccess = hasFullAccess
         model.showGlobe = needsInputModeSwitchKey
-        model.onMic = { [weak self] in self?.micFeel.impactOccurred(); self?.micTapped() }
+        model.onMic = { [weak self] in self?.micFeel.impactOccurred(); AudioServicesPlaySystemSound(1520); self?.micTapped() }
         model.onType = { [weak self] text in self?.keyFeedback(); self?.textDocumentProxy.insertText(text) }
         model.onDelete = { [weak self] in self?.keyFeedback(); self?.textDocumentProxy.deleteBackward() }
         model.onGlobe = { [weak self] in self?.keyFeedback(); self?.advanceToNextInputMode() }
@@ -36,7 +37,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             host.view.topAnchor.constraint(equalTo: view.topAnchor),
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            view.heightAnchor.constraint(equalToConstant: 236),
+            view.heightAnchor.constraint(equalToConstant: 246),
         ])
         host.didMove(toParent: self)
 
@@ -55,6 +56,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     /// haptics with Full Access on; the click follows the person's keyboard-clicks setting.)
     private func keyFeedback() {
         tapFeel.impactOccurred()
+        AudioServicesPlaySystemSound(1519)   // the light "peek" tap; works in keyboards when UIKit's haptics don't
         UIDevice.current.playInputClick()
         tapFeel.prepare()
     }
@@ -155,18 +157,21 @@ struct KeyboardView: View {
                 .font(.system(size: 13, design: .monospaced))
                 .foregroundStyle(model.note != nil ? error : sub)
                 .lineLimit(2).multilineTextAlignment(.center)
-                .padding(.top, 12)
+                .padding(.top, 10)
                 .padding(.horizontal, 16)
 
+            Spacer(minLength: 0)
+
+            // the mic sits centered in the space between the status line and the keys
             Button(action: model.onMic) {
                 ZStack {
                     MarkerDot().fill(Color.black.opacity(0.16)).offset(y: 3)
                     MarkerDot().fill(model.state == .listening ? error : main)
                     Image(systemName: model.state == .listening ? "stop.fill" : "mic.fill")
-                        .font(.system(size: 24, weight: .bold))
+                        .font(.system(size: 29, weight: .bold))
                         .foregroundStyle(bg)
                 }
-                .frame(width: 78, height: 78)
+                .frame(width: 92, height: 92)
                 .opacity(model.state == .writing ? 0.45 : 1)
             }
             .buttonStyle(.plain)
