@@ -343,6 +343,8 @@ struct DictationDetail: View {
         }
         .background(theme.bg.ignoresSafeArea())
         .handDrawnBack()
+        .onAppear { dictator.checkTidy(current) }
+        .onChange(of: current.text) { _, _ in dictator.checkTidy(current) }
         // the same score line and actions as home, pinned at the bottom
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !editing {

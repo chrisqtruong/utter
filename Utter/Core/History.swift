@@ -24,6 +24,14 @@ struct Dictation: Codable, Identifiable, Hashable {
     /// How deep the undo stack was right after tidy. Tidy is a one-time pass; undoing back past it offers it again.
     var tidyDepth: Int?
     var isTidied: Bool { tidyDepth != nil }
+    /// What tidy would make of the current text, worked out ahead of time. Nil until checked.
+    var tidySuggestion: String?
+    /// The text the suggestion was made from, so an edit makes it stale.
+    var tidyCheckedText: String?
+    /// True when tidy was checked for this exact text.
+    var tidyChecked: Bool { tidyCheckedText == text }
+    /// Show the tidy button only when tidy would actually change something.
+    var canTidy: Bool { !isTidied && tidyChecked && tidySuggestion != nil }
 }
 
 /// The history, kept as one small JSON file in the app's private folder.
@@ -80,6 +88,16 @@ final class History {
     func applyTidy(_ id: UUID, text: String) -> Dictation? {
         guard edit(id, to: text) != nil, let i = items.firstIndex(where: { $0.id == id }) else { return nil }
         items[i].tidyDepth = items[i].undoStack?.count ?? 0
+        save()
+        return items[i]
+    }
+
+    /// Records what tidy would do for the note's current text (nil suggestion: no change needed).
+    @discardableResult
+    func setTidyCheck(_ id: UUID, from text: String, suggestion: String?) -> Dictation? {
+        guard let i = items.firstIndex(where: { $0.id == id }), items[i].text == text else { return nil }
+        items[i].tidyCheckedText = text
+        items[i].tidySuggestion = suggestion
         save()
         return items[i]
     }

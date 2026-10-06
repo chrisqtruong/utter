@@ -28,16 +28,15 @@ struct ResultActions<Trailing: View>: View {
                     Text(copied ? "copied" : "copy").foregroundStyle(copied ? theme.main : theme.sub)
                 }
                 .accessibilityLabel(copied ? "Copied. Copy again" : "Copy")
-                if Assistant.isAvailable {
-                    if dictation.isTidied {
-                        // one careful pass is enough; undo brings the button back
-                        Text("tidied").foregroundStyle(theme.sub.opacity(0.55))
-                            .accessibilityLabel("Tidied")
-                    } else {
-                        Button { Task { await dictator.tidy(dictation) } } label: { Text("tidy") }
-                            .disabled(dictator.tidyingID != nil)
-                            .accessibilityHint("Fixes punctuation and drops false starts, on this iPhone")
-                    }
+                if dictation.isTidied {
+                    // one careful pass is enough; undo brings the button back
+                    Text("tidied").foregroundStyle(theme.sub.opacity(0.55))
+                        .accessibilityLabel("Tidied")
+                } else if dictation.canTidy {
+                    // only offered when tidy would actually change something
+                    Button { Task { await dictator.tidy(dictation) } } label: { Text("tidy") }
+                        .disabled(dictator.tidyingID != nil)
+                        .accessibilityHint("Fixes punctuation and drops false starts, on this iPhone")
                 }
                 if dictation.canUndo {
                     Button { dictator.undo(dictation) } label: { Text("undo") }

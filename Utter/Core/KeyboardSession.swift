@@ -27,6 +27,7 @@ final class KeyboardSession {
         self.dictator = dictator
         toggleObserver = DarwinObserver(KeyboardLink.toggle) { [weak self] in
             Task { @MainActor in
+                KeyboardLink.log("app", "toggle received, active=\(self?.active ?? false) state=\(self?.state.rawValue ?? "-")")
                 guard let self, self.active else { return }
                 KeyboardLink.post(KeyboardLink.ack)   // "got it": the keyboard stays where it is
                 self.toggle()
@@ -40,6 +41,7 @@ final class KeyboardSession {
 
     /// The keyboard opened the app: start a session and start listening right away.
     func startFromKeyboard() {
+        KeyboardLink.log("app", "opened from keyboard, active=\(active) state=\(state.rawValue)")
         showBackHint = true
         Task {
             guard await Recorder.requestPermission() else { note("Utter needs the microphone. Turn it on in Settings → Apps → Utter."); return }
@@ -94,11 +96,13 @@ final class KeyboardSession {
         let samples = recorder.endCapture()
         set(.writing)
         lastUse = Date()
+        KeyboardLink.log("app", "finish: \(samples.count / 16_000)s of audio")
         if let text = await dictator.transcribeForKeyboard(samples) {
             KeyboardLink.write([KeyboardLink.Key.result: text,
                                 KeyboardLink.Key.resultID: UUID().uuidString,
                                 KeyboardLink.Key.resultAt: Date().timeIntervalSince1970,
                                 KeyboardLink.Key.note: nil])
+            KeyboardLink.log("app", "result saved (\(text.count) chars), resultID=\(String(describing: KeyboardLink.read()[KeyboardLink.Key.resultID] ?? "-").prefix(8))")
             KeyboardLink.post(KeyboardLink.changed)
         } else {
             note("Didn't hear any talking.")

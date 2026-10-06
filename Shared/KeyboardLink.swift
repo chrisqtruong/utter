@@ -37,8 +37,24 @@ enum KeyboardLink {
     // A small file in the App Group, read fresh every time. (Shared UserDefaults can hand the
     // keyboard an out-of-date value, which made it think no session was running.)
 
-    private static var fileURL: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)?.appendingPathComponent("keyboard.plist")
+    /// In the group's Library folder (where Xcode's device tools can read it, for debugging).
+    private static var folder: URL? {
+        guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)?
+            .appendingPathComponent("Library", isDirectory: true) else { return nil }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    private static var fileURL: URL? { folder?.appendingPathComponent("keyboard.plist") }
+
+    /// A short trail of what happened, from both the app and the keyboard, for debugging the hand-off.
+    /// Keeps only the last ~200 lines.
+    static func log(_ who: String, _ what: String) {
+        guard let url = folder?.appendingPathComponent("keyboard-log.txt") else { return }
+        let stamp = String(format: "%.2f", Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 10_000))
+        var lines = ((try? String(contentsOf: url, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
+        lines.append("\(stamp) \(who): \(what)")
+        try? lines.suffix(200).joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
     }
 
     static func read() -> [String: Any] {
@@ -51,7 +67,7 @@ enum KeyboardLink {
         guard let url = fileURL else { return }
         var d = read()
         for (k, v) in changes { d[k] = v }
-        (d as NSDictionary).write(to: url, atomically: true)
+        if !(d as NSDictionary).write(to: url, atomically: true) { log("app", "WRITE FAILED keys=\(changes.keys.sorted())") }
     }
 
     /// True while the app is running a keyboard session (it refreshes `alive` every second).

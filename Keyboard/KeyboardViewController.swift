@@ -41,8 +41,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         ])
         host.didMove(toParent: self)
 
-        changed = DarwinObserver(KeyboardLink.changed) { [weak self] in self?.refresh() }
-        ackObserver = DarwinObserver(KeyboardLink.ack) { [weak self] in self?.waitingForAck = false }
+        changed = DarwinObserver(KeyboardLink.changed) { [weak self] in KeyboardLink.log("kb", "changed received"); self?.refresh() }
+        KeyboardLink.log("kb", "loaded, fullAccess=\(hasFullAccess)")
+        ackObserver = DarwinObserver(KeyboardLink.ack) { [weak self] in KeyboardLink.log("kb", "ack received"); self?.waitingForAck = false }
         tapFeel.prepare(); micFeel.prepare()
     }
 
@@ -67,26 +68,30 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         guard hasFullAccess else { return }
         let d = KeyboardLink.read()
         let mine = UserDefaults.standard   // the keyboard's own memory of what it already typed
+        KeyboardLink.log("kb", "refresh: state=\(d[KeyboardLink.Key.state] as? String ?? "-") resultID=\((d[KeyboardLink.Key.resultID] as? String ?? "-").prefix(8)) inserted=\((mine.string(forKey: KeyboardLink.Key.inserted) ?? "-").prefix(8)) keys=\(d.count)")
         guard let id = d[KeyboardLink.Key.resultID] as? String,
               id != mine.string(forKey: KeyboardLink.Key.inserted),
               let text = d[KeyboardLink.Key.result] as? String else { return }
         mine.set(id, forKey: KeyboardLink.Key.inserted)
         // only type fresh results, so an old one never lands in the wrong place later
         let age = Date().timeIntervalSince1970 - (d[KeyboardLink.Key.resultAt] as? Double ?? 0)
-        guard age < 120 else { return }
+        guard age < 120 else { KeyboardLink.log("kb", "result too old (\(Int(age))s), skipped"); return }
         let before = textDocumentProxy.documentContextBeforeInput ?? ""
         let spacer = before.isEmpty || before.hasSuffix(" ") || before.hasSuffix("\n") ? "" : " "
         textDocumentProxy.insertText(spacer + text)
+        KeyboardLink.log("kb", "typed \(text.count) chars")
     }
 
     /// Asks the app to start or stop. If it answers, stay here; if not (no session), open it.
     private func micTapped() {
         guard hasFullAccess else { model.note = "Turn on Allow Full Access first (see below)."; return }
         waitingForAck = true
+        KeyboardLink.log("kb", "mic tapped, sent toggle")
         KeyboardLink.post(KeyboardLink.toggle)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
             guard let self, self.waitingForAck else { return }
             self.waitingForAck = false
+            KeyboardLink.log("kb", "no ack in time, opening app")
             self.openApp()
         }
     }

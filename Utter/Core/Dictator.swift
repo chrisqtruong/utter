@@ -92,6 +92,7 @@ final class Dictator {
     func undo(_ dictation: Dictation) {
         guard let updated = history.undo(dictation.id) else { return }
         suggestedFix = nil
+        checkTidy(updated)
         if latest?.id == dictation.id {
             latest = updated
             if UserDefaults.standard.object(forKey: "autoCopy") as? Bool ?? true { copy(updated) }
@@ -116,12 +117,34 @@ final class Dictator {
     }
 
     /// Cleans up a dictation with the on-device model. Saved as an edit, so "back to what you said" undoes it.
+    /// Works out quietly, in the background, whether tidy would change this note, so the button
+    /// only shows when it would. Runs on the phone with Apple Intelligence, same as tidy itself.
+    func checkTidy(_ dictation: Dictation) {
+        guard Assistant.isAvailable, !dictation.isTidied, !dictation.tidyChecked else { return }
+        let text = dictation.text
+        Task {
+            let tidied = try? await Assistant.tidy(text, spellings: vocabulary.hintWords)
+            let changed = tidied.map { Self.same($0, text) == false } ?? false
+            guard let updated = history.setTidyCheck(dictation.id, from: text, suggestion: changed ? tidied : nil) else { return }
+            if latest?.id == dictation.id { latest = updated }
+        }
+    }
+
+    /// Equal apart from spacing.
+    private static func same(_ a: String, _ b: String) -> Bool {
+        func squash(_ s: String) -> String { s.split(whereSeparator: \.isWhitespace).joined(separator: " ") }
+        return squash(a) == squash(b)
+    }
+
     func tidy(_ dictation: Dictation) async {
         guard !dictation.isTidied else { return }
         tidyingID = dictation.id
         defer { tidyingID = nil }
         do {
-            let tidied = try await Assistant.tidy(dictation.text, spellings: vocabulary.hintWords)
+            // usually already worked out in the background, so this is instant
+            let tidied: String
+            if dictation.tidyChecked, let ready = dictation.tidySuggestion { tidied = ready }
+            else { tidied = try await Assistant.tidy(dictation.text, spellings: vocabulary.hintWords) }
             guard let updated = history.applyTidy(dictation.id, text: tidied) else { return }
             if latest?.id == dictation.id {
                 latest = updated
@@ -139,6 +162,7 @@ final class Dictator {
             .flatMap { fix in vocabulary.entries.contains { $0.heard.lowercased() == fix.heard.lowercased() } ? nil : fix }
         guard let updated = history.edit(latest.id, to: text) else { return }
         self.latest = updated
+        checkTidy(updated)
         if UserDefaults.standard.object(forKey: "autoCopy") as? Bool ?? true { copy(updated) }
     }
 
@@ -255,6 +279,7 @@ final class Dictator {
             suggestedFix = nil
             if shouldCopy, UserDefaults.standard.object(forKey: "autoCopy") as? Bool ?? true { copy(dictation) }
             nameIfLong(dictation)
+            checkTidy(dictation)
         } catch {
             message = "Something went wrong turning that into text. Try again."
         }
