@@ -23,6 +23,10 @@ final class KeyboardSession {
     private let dictator: Dictator
     private var heartbeat: Timer?
     private var lastUse = Date()
+    /// When the keyboard last opened the app. The mic tap that opened it is also sent as a
+    /// "toggle"; iOS can hold that one back while the app is asleep and hand it over just after
+    /// the app wakes, where it would stop the listening that just started.
+    private var openedAt = Date.distantPast
     private var toggleObserver: DarwinObserver?
 
     init(dictator: Dictator) {
@@ -31,6 +35,10 @@ final class KeyboardSession {
             Task { @MainActor in
                 KeyboardLink.log("app", "toggle received, active=\(self?.active ?? false) state=\(self?.state.rawValue ?? "-")")
                 guard let self, self.active else { return }
+                if Date().timeIntervalSince(self.openedAt) < 2 {
+                    KeyboardLink.log("app", "late toggle from the opening tap, ignored")
+                    return
+                }
                 KeyboardLink.post(KeyboardLink.ack)   // "got it": the keyboard stays where it is
                 self.toggle()
             }
@@ -46,6 +54,7 @@ final class KeyboardSession {
         KeyboardLink.log("app", "opened from keyboard, active=\(active) state=\(state.rawValue)")
         showBackHint = true
         openedFromKeyboard += 1
+        openedAt = Date()
         Task {
             guard await Recorder.requestPermission() else { note("Utter needs the microphone. Turn it on in Settings → Apps → Utter."); return }
             if !active {
