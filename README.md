@@ -44,6 +44,10 @@ Inspired by [SpeakType](https://github.com/karansinghgit/speaktype), the free di
 
 Everything happens on the phone. Recordings are thrown away as soon as they're turned into text; only the text is kept. No account, no tracking. The internet is only used to download speech models when you ask. The one exception: audio from "what's playing" is saved on the phone while it's captured (the screen recording add-on has too little memory to run a speech model), then deleted as soon as it's transcribed.
 
+## Roadmap
+
+- **iOS keyboard.** A Utter key right in the keyboard, so you can dictate into any app without switching. iOS doesn't let keyboards use the microphone and gives them very little memory, so the keyboard would hand off to the app to listen, then bring the text back.
+
 ## Build it
 
 Needs Xcode 27, an iPhone on iOS 18 or later (Apple Intelligence features need iOS 26 and a supported iPhone), and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
