@@ -10,6 +10,8 @@ import Observation
 final class KeyboardSession {
     private(set) var active = false
     private(set) var state: KeyboardLink.State = .off
+    /// True right after the keyboard opened the app, until you leave: home shows the way back.
+    private(set) var showBackHint = false
 
     /// A session ends on its own after this long without use, to save battery.
     static let idleTimeout: TimeInterval = 5 * 60
@@ -37,6 +39,7 @@ final class KeyboardSession {
 
     /// The keyboard opened the app: start a session and start listening right away.
     func startFromKeyboard() {
+        showBackHint = true
         Task {
             guard await Recorder.requestPermission() else { note("Utter needs the microphone. Turn it on in Settings → Apps → Utter."); return }
             if !active {
@@ -61,7 +64,11 @@ final class KeyboardSession {
         }
     }
 
+    /// You went back to the other app (or anywhere else).
+    func leftApp() { showBackHint = false }
+
     func end() {
+        showBackHint = false
         heartbeat?.invalidate(); heartbeat = nil
         if active { _ = recorder.stop() }
         active = false

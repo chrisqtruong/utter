@@ -87,6 +87,21 @@ struct MarkerChevron: Shape {
     }
 }
 
+/// A marker arrow curving up and to the left, a little uneven, like one drawn on a page.
+struct MarkerArrow: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: rect.minX + x * w, y: rect.minY + y * h) }
+        var path = Path()
+        path.move(to: p(0.92, 0.96))                                        // the tail
+        path.addQuadCurve(to: p(0.14, 0.14), control: p(0.24, 0.86))       // one sweeping stroke up to the tip
+        path.move(to: p(0.42, 0.12))                                        // the head: two strokes, not quite matching
+        path.addQuadCurve(to: p(0.13, 0.13), control: p(0.27, 0.09))
+        path.addQuadCurve(to: p(0.17, 0.44), control: p(0.12, 0.28))
+        return path
+    }
+}
+
 /// A rough highlighter swipe, for buttons (from the site's header links).
 struct MarkerSwipe: Shape {
     func path(in rect: CGRect) -> Path {

@@ -61,12 +61,16 @@ struct HomeView: View {
 
     private var topBar: some View {
         HStack(spacing: 0) {
-            HStack(spacing: 2) {
-                Text("utter").foregroundStyle(theme.text)
-                Text(".").foregroundStyle(theme.main)
+            if keyboard.showBackHint {
+                BackHint().padding(.leading, 14)
+            } else {
+                HStack(spacing: 2) {
+                    Text("utter").foregroundStyle(theme.text)
+                    Text(".").foregroundStyle(theme.main)
+                }
+                .font(.mono(20, .semibold))
+                .padding(.leading, 24)
             }
-            .font(.mono(20, .semibold))
-            .padding(.leading, 24)
             Spacer()
             IconButton(systemName: "clock.arrow.circlepath", label: "History") { sheet = .history }
             IconButton(systemName: "slider.horizontal.3", label: "Settings") { sheet = .settings }
@@ -83,10 +87,6 @@ struct HomeView: View {
                 Text(keyboardLine).font(.mono(13)).foregroundStyle(theme.text)
                 Spacer()
                 Button("end") { keyboard.end() }.font(.mono(13)).foregroundStyle(theme.sub)
-            }
-            if keyboard.state == .listening {
-                Text("go back to your app (top left) and talk, then tap the mic in the keyboard")
-                    .font(.mono(12)).foregroundStyle(theme.sub)
             }
         }
         .padding(12)
@@ -163,8 +163,8 @@ struct HomeView: View {
                 result(latest)
             } else if !models.hasAnyModel {
                 firstRun
-            } else {
-                hint
+            } else if !keyboard.active {
+                hint   // during a keyboard session the strip at the top says what's happening
             }
         }
     }
@@ -306,5 +306,30 @@ struct HomeView: View {
     private func clock(_ seconds: TimeInterval) -> String {
         let s = Int(seconds)
         return String(format: "%d:%02d", s / 60, s % 60)
+    }
+}
+
+/// Points at iOS's own "◀ Notes" link at the top left, the only way back to the app you came from.
+/// Apps can't jump back by themselves, so this just makes that link hard to miss.
+private struct BackHint: View {
+    @Environment(\.theme) private var theme
+    @State private var nudge = false
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 6) {
+            MarkerArrow()
+                .stroke(theme.main, style: StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round))
+                .frame(width: 30, height: 30)
+                .offset(x: nudge ? -3 : 1, y: nudge ? -4 : 1)
+            Text("back to your app")
+                .font(.mono(13))
+                .foregroundStyle(theme.text)
+                .padding(.bottom, 1)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { nudge = true }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("To go back, tap the back link at the top left of the screen")
     }
 }

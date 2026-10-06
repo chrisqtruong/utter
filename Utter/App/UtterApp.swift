@@ -56,6 +56,7 @@ struct UtterApp: App {
                 Task { await app.dictator.processCaptures() }
             case .background:
                 app.dictator.appWentToBackground()
+                app.keyboard.leftApp()
             default: break
             }
         }
