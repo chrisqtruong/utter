@@ -12,6 +12,8 @@ final class KeyboardSession {
     private(set) var state: KeyboardLink.State = .off
     /// True right after the keyboard opened the app, until you leave: home shows the way back.
     private(set) var showBackHint = false
+    /// The app you came from, when Utter knows it ("notes"), for the back hint.
+    private(set) var hostName: String?
 
     /// The mic stays on (keeping nothing) this long after a dictation, so the keyboard can start
     /// the next one without opening the app: iOS only lets an app turn the mic on while it's on screen.
@@ -39,8 +41,9 @@ final class KeyboardSession {
     }
 
     /// The keyboard opened the app: start a session and start listening right away.
-    func startFromKeyboard() {
+    func startFromKeyboard(link: URL) {
         showBackHint = true
+        hostName = nil
         Task {
             guard await Recorder.requestPermission() else { note("Utter needs the microphone. Turn it on in Settings → Apps → Utter."); return }
             if !active {
@@ -52,7 +55,18 @@ final class KeyboardSession {
             // The text is typed when you go back to the keyboard.
             if state == .listening { await finish() }
             else if state != .writing { beginCapture() }
+            await returnToHost(link: link)
         }
+    }
+
+    /// With the mic on, send you back to the app you were typing in, if Utter can tell which.
+    private func returnToHost(link: URL) async {
+        let bundleID = await HostReturn.findHost(fromLink: link)
+        guard let host = HostReturn.host(for: bundleID) else { return }   // unknown app: the arrow stays
+        hostName = host.name
+        try? await Task.sleep(for: .milliseconds(250))                    // let the mic settle first
+        guard showBackHint else { return }                                 // you already left
+        _ = await HostReturn.go(to: host)
     }
 
     /// From the keyboard's mic button, during a session.
