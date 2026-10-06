@@ -6,7 +6,7 @@ Dictation for iPhone, built for long thoughts: monologues, voice notes, journali
   <img src="docs/screenshots/utter-screens.png" width="900" alt="Three Utter screens in the serika dark theme: a finished two-paragraph note with a match score of 96, the searchable history with date filters, and settings with weekly stats and hand-drawn toggles">
 </p>
 
-**Free, completely.** No price, no subscription, no account, no ads, no tracking. Your recordings, notes, dictionary and stats stay on your own phone, and they're yours. The code is open: use it, change it, build on it. The speech models are free too (NVIDIA's Parakeet under CC-BY-4.0, OpenAI's Whisper under MIT), and the writing help uses Apple Intelligence, which is built into the phone.
+**Free.** No price, no subscription, no account, no ads, no tracking, and I plan to keep it that way for as long as I can. Your recordings, notes, dictionary and stats stay on your own phone, and they're yours. The code is open: use it, change it, build on it. The speech models are free too (NVIDIA's Parakeet under CC-BY-4.0, OpenAI's Whisper under MIT), and the writing help uses Apple Intelligence, which is built into the phone.
 
 Inspired by [SpeakType](https://github.com/karansinghgit/speaktype), the free dictation app for Mac, Windows and Linux. Themes come from [Monkeytype](https://github.com/monkeytypegame/monkeytype) by way of [Vox2](https://github.com/chrisqtruong/vox2). The hand-drawn marks come from [chrisqtruong.github.io](https://chrisqtruong.github.io).
 
@@ -48,7 +48,7 @@ Inspired by [SpeakType](https://github.com/karansinghgit/speaktype), the free di
 
 ## Free and private
 
-- **Free forever.** Utter costs nothing and never will. There's no paid tier, no account and no ads.
+- **Free.** Utter costs nothing: no paid tier, no account, no ads. I'll keep it free for as long as I'm able to.
 - **Your data stays yours.** Everything happens on the phone: speech becomes text there, and recordings are thrown away as soon as they're turned into text. Notes, the dictionary, stats and settings live only on your device; export or delete them any time. Nothing is collected or sent anywhere. The internet is only used to download speech models when you ask.
 - **One exception, spelled out:** audio from "what's playing" is saved on the phone while it's captured (the screen recording add-on has too little memory to run a speech model), then deleted as soon as it's turned into text.
 - **Open to build on.** The code is GPL-3.0: anyone can use it, study it, change it and share their own version, as long as what they share stays open too.
