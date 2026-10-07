@@ -35,6 +35,15 @@ struct Dictation: Codable, Identifiable, Hashable {
     /// Set once "tidy automatically" has had its one go at this note, so undoing back to what
     /// you said doesn't tidy it again.
     var autoTidyDone: Bool?
+    /// True when "tidy automatically" made the current tidy (not a tap).
+    var autoTidied: Bool?
+    /// The text is exactly what tidy made, with no edits since.
+    var isJustTidied: Bool { isTidied && (undoStack?.count ?? 0) == tidyDepth }
+    /// For the score line: what happened to the words since you said them.
+    var changeLabel: String? {
+        if isJustTidied { return autoTidied == true ? "auto-tidied" : "tidied" }
+        return isEdited ? "edited" : nil
+    }
 }
 
 /// The history, kept as one small JSON file in the app's private folder.
@@ -103,6 +112,12 @@ final class History {
         items[i].tidySuggestion = suggestion
         save()
         return items[i]
+    }
+
+    func markAutoTidied(_ id: UUID) {
+        guard let i = items.firstIndex(where: { $0.id == id }) else { return }
+        items[i].autoTidied = true
+        save()
     }
 
     func markAutoTidyDone(_ id: UUID) {

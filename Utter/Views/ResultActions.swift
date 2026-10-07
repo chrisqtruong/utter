@@ -16,7 +16,7 @@ struct ResultActions<Trailing: View>: View {
                 HStack(spacing: 6) {
                     Text("match").foregroundStyle(theme.sub)
                     ScoreChip(transcript: dictation.transcript)
-                    if dictation.isEdited { Text("· edited").foregroundStyle(theme.sub) }
+                    if let change = dictation.changeLabel { Text("· \(change)").foregroundStyle(theme.sub) }
                 }
                 .font(.mono(13))
                 .lineLimit(1)
@@ -28,11 +28,8 @@ struct ResultActions<Trailing: View>: View {
                     Text(copied ? "copied" : "copy").foregroundStyle(copied ? theme.main : theme.sub)
                 }
                 .accessibilityLabel(copied ? "Copied. Copy again" : "Copy")
-                if dictation.isTidied {
-                    // one careful pass is enough; undo brings the button back
-                    Text("tidied").foregroundStyle(theme.sub.opacity(0.55))
-                        .accessibilityLabel("Tidied")
-                } else if dictation.canTidy {
+                // one careful pass is enough (the score line says "tidied"); undo brings the button back
+                if !dictation.isTidied, dictation.canTidy {
                     // only offered when tidy would actually change something
                     Button { Task { await dictator.tidy(dictation) } } label: { Text("tidy") }
                         .disabled(dictator.tidyingID != nil)

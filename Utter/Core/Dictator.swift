@@ -138,7 +138,9 @@ final class Dictator {
         guard UserDefaults.standard.bool(forKey: "autoTidy"), dictation.autoTidyDone != true, !dictation.isEdited else { return }
         history.markAutoTidyDone(dictation.id)
         guard dictation.canTidy, let tidied = dictation.tidySuggestion,
-              let updated = history.applyTidy(dictation.id, text: tidied) else { return }
+              history.applyTidy(dictation.id, text: tidied) != nil else { return }
+        history.markAutoTidied(dictation.id)
+        guard let updated = history.items.first(where: { $0.id == dictation.id }) else { return }
         if latest?.id == dictation.id {
             latest = updated
             // re-copy the tidied text, unless it went to the keyboard (that text is already typed)
