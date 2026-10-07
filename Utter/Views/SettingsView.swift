@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage("removeFillers") private var removeFillers = true
     @AppStorage("showShaky") private var showShaky = true
     @AppStorage("aiTitles") private var aiTitles = true
+    @AppStorage("autoTidy") private var autoTidy = false
     @AppStorage(ReturnApp.storageKey) private var returnID = ""   // so the keyboard row updates
 
     var body: some View {
@@ -21,7 +22,8 @@ struct SettingsView: View {
 
                 PageSection(label: "speech") {
                     NavigationLink { ModelsView() } label: {
-                        PageRow(title: "Model", value: models.selected?.name.lowercased() ?? "none")
+                        // speech · writing, e.g. "parakeet v3 · qwen3.5 2b"
+                        PageRow(title: "Models", value: "\(models.selected?.name.lowercased() ?? "none") · \(WriterStore.shared.selected.isBuiltIn ? "apple" : WriterStore.shared.selected.name.lowercased())")
                     }
                     NavigationLink { VoiceCheckView() } label: {
                         HStack(alignment: .firstTextBaseline) {
@@ -49,13 +51,17 @@ struct SettingsView: View {
                 }
 
                 PageSection(label: "after you stop",
-                            note: Assistant.isAvailable ? nil : "Naming notes and tidy need Apple Intelligence. \(Assistant.unavailableReason)") {
+                            note: Assistant.isAvailable ? nil : "Naming notes and tidy need a writing model (Models). \(Assistant.unavailableReason)") {
                     MarkerToggle(title: "Copy the text", isOn: $autoCopy)
                     MarkerToggle(title: "Remove ums and uhs", isOn: $removeFillers)
                     MarkerToggle(title: "Underline shaky words", isOn: $showShaky)
                     MarkerToggle(title: "Name longer notes", isOn: $aiTitles)
                         .disabled(!Assistant.isAvailable)
                         .opacity(Assistant.isAvailable ? 1 : 0.45)
+                    MarkerToggle(title: "Tidy automatically", isOn: $autoTidy)
+                        .disabled(!Assistant.isAvailable)
+                        .opacity(Assistant.isAvailable ? 1 : 0.45)
+
                 }
 
                 PageSection(label: "look") {

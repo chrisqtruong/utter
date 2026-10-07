@@ -11,6 +11,13 @@ packages:
   FluidAudio:
     url: https://github.com/FluidInference/FluidAudio
     from: 0.17.5
+  # open writing models (tidy, titles) on the phone, via Apple's MLX
+  MLXSwiftLM:
+    url: https://github.com/ml-explore/mlx-swift-lm
+    exactVersion: 3.32.3
+  SwiftTransformers:
+    url: https://github.com/huggingface/swift-transformers
+    from: 1.3.0
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -70,6 +77,12 @@ targets:
         product: WhisperKit
       - package: FluidAudio
         product: FluidAudio
+      - package: MLXSwiftLM
+        product: MLXLLM
+      - package: MLXSwiftLM
+        product: MLXLMCommon
+      - package: SwiftTransformers
+        product: Tokenizers
     scheme:
       # Testing shortcuts (debug builds only). Toggle in Product > Scheme > Edit Scheme > Run > Arguments.
       commandLineArguments:

@@ -8,20 +8,19 @@ struct ModelsView: View {
 
     var body: some View {
         Page(title: "models", showsDone: inSheet) {
-            Text("Tap a downloaded model to use it. Remove ones you don't need to free up space; you can get them again any time.")
+            Text("Speech models turn your voice into text. Writing models tidy and name your notes. Tap a downloaded one to use it; remove ones you don't need.")
                 .font(.ui(15)).foregroundStyle(theme.sub)
                 .fixedSize(horizontal: false, vertical: true)
-            PageSection(label: "fast · parakeet") {
-                ForEach(Catalog.models.filter { $0.family == .parakeet }) { row($0) }
+            PageSection(label: "speech · smallest to biggest") {
+                // ties go to the recommended one
+                ForEach(Catalog.models.sorted { ($0.megabytes, $0.recommended ? 0 : 1) < ($1.megabytes, $1.recommended ? 0 : 1) }) { row($0) }
             }
-            PageSection(label: "more languages · whisper") {
-                ForEach(Catalog.models.filter { $0.family == .whisper }) { row($0) }
-            }
+            WritersSection(label: "writing · smallest to biggest")
             if let error = models.loadError {
                 Text(error).font(.mono(13)).foregroundStyle(theme.error)
                     .onTapGesture { models.clearError() }
             }
-            Text("on this iPhone: \(formatMB(models.totalDiskMB)) · free: \(formatMB(ModelStore.freeSpaceMB))")
+            Text("on this iPhone: \(formatMB(models.totalDiskMB + WriterStore.shared.totalDiskMB)) · free: \(formatMB(ModelStore.freeSpaceMB))")
                 .font(.mono(12)).foregroundStyle(theme.sub)
         }
         .confirmationDialog("Remove \(removing?.name ?? "")?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible) {

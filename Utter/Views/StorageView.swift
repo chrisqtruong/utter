@@ -13,10 +13,11 @@ struct StorageView: View {
 
     var body: some View {
         Page(title: "storage", showsDone: false) {
-            PageSection(label: "on this iphone · \(formatMB(appSizeMB + models.totalDiskMB + history.diskMB))",
+            PageSection(label: "on this iphone · \(formatMB(appSizeMB + models.totalDiskMB + WriterStore.shared.totalDiskMB + history.diskMB))",
                         note: "Models take almost all the room. Notes are tiny, even thousands of them.") {
                 let parts: [(String, Double, Color)] = [
                     ("speech models", models.totalDiskMB, theme.main),
+                    ("writing models", WriterStore.shared.totalDiskMB, theme.error),
                     ("the app", appSizeMB, theme.sub),
                     ("\(history.items.count) notes", history.diskMB, theme.text),
                 ]

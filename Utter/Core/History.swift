@@ -32,6 +32,9 @@ struct Dictation: Codable, Identifiable, Hashable {
     var tidyChecked: Bool { tidyCheckedText == text }
     /// Show the tidy button only when tidy would actually change something.
     var canTidy: Bool { !isTidied && tidyChecked && tidySuggestion != nil }
+    /// Set once "tidy automatically" has had its one go at this note, so undoing back to what
+    /// you said doesn't tidy it again.
+    var autoTidyDone: Bool?
 }
 
 /// The history, kept as one small JSON file in the app's private folder.
@@ -100,6 +103,12 @@ final class History {
         items[i].tidySuggestion = suggestion
         save()
         return items[i]
+    }
+
+    func markAutoTidyDone(_ id: UUID) {
+        guard let i = items.firstIndex(where: { $0.id == id }) else { return }
+        items[i].autoTidyDone = true
+        save()
     }
 
     func setTitle(_ id: UUID, _ title: String) {

@@ -49,6 +49,9 @@ struct UtterApp: App {
                 }
         }
         .onChange(of: scenePhase) { _, phase in
+            // open writing models use the graphics chip, which iOS doesn't allow in the background:
+            // stop as soon as Utter starts to leave the screen, then free the memory
+            if phase != .active { Task { await WriterEngine.shared.stopAndUnload() } }
             switch phase {
             case .active:
                 app.models.refresh()
@@ -58,6 +61,7 @@ struct UtterApp: App {
             case .background:
                 app.dictator.appWentToBackground()
                 app.keyboard.leftApp()
+
             default: break
             }
         }

@@ -123,10 +123,26 @@ final class Dictator {
         guard Assistant.isAvailable, !dictation.isTidied, !dictation.tidyChecked else { return }
         let text = dictation.text
         Task {
-            let tidied = try? await Assistant.tidy(text, spellings: vocabulary.hintWords)
-            let changed = tidied.map { Self.same($0, text) == false } ?? false
+            // if the model couldn't run (Utter left the screen, say), don't record an answer: check again next time
+            guard let tidied = try? await Assistant.tidy(text, spellings: vocabulary.hintWords) else { return }
+            let changed = !Self.same(tidied, text)
             guard let updated = history.setTidyCheck(dictation.id, from: text, suggestion: changed ? tidied : nil) else { return }
             if latest?.id == dictation.id { latest = updated }
+            autoTidyIfWanted(updated)
+        }
+    }
+
+    /// "Tidy automatically": once per note, before any edits, put the tidied version in.
+    /// Undo still goes back to exactly what you said, and it won't tidy again after that.
+    private func autoTidyIfWanted(_ dictation: Dictation) {
+        guard UserDefaults.standard.bool(forKey: "autoTidy"), dictation.autoTidyDone != true, !dictation.isEdited else { return }
+        history.markAutoTidyDone(dictation.id)
+        guard dictation.canTidy, let tidied = dictation.tidySuggestion,
+              let updated = history.applyTidy(dictation.id, text: tidied) else { return }
+        if latest?.id == dictation.id {
+            latest = updated
+            // re-copy the tidied text, unless it went to the keyboard (that text is already typed)
+            if dictation.source != "keyboard", UserDefaults.standard.object(forKey: "autoCopy") as? Bool ?? true { copy(updated) }
         }
     }
 

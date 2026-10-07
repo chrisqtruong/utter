@@ -29,8 +29,9 @@ Inspired by [SpeakType](https://github.com/karansinghgit/speaktype), the free di
 - **Reads like notes.** Paragraphs start where you paused at the end of a sentence, and ums and uhs are removed.
 - **Match score.** How sure the model was, 0 to 100, with shaky words underlined. See [how it works](docs/match-score.md).
 - **Edit and undo.** Tap the text to fix a word. Undo steps back through every change, all the way to what you said.
-- **Tidy.** One careful pass with Apple Intelligence, on the phone: fixes punctuation, splits run-on sentences, drops false starts.
-- **Titles.** Longer notes get a short name, also from Apple Intelligence.
+- **Tidy.** One careful pass, on the phone: fixes punctuation, splits run-on sentences, drops false starts. Tap it, or turn on *Tidy automatically*; undo always goes back to exactly what you said.
+- **Writing models.** Tidy and titles use Apple Intelligence by default, or an optional open model you download (Qwen3 1.7B or Qwen3.5 2B, run with Apple's [MLX](https://github.com/ml-explore/mlx-swift-lm)). In a side-by-side test on long, rambling notes, the Qwen models cleaned up far more than Apple's model; they're bigger and slower to start.
+- **Titles.** Longer notes get a short name from the same writing model.
 - **Dictionary.** "When it writes *vox two*, write *Vox2*." Fix one word in a note and Utter offers to remember it.
 
 **Models**
@@ -59,7 +60,6 @@ Inspired by [SpeakType](https://github.com/karansinghgit/speaktype), the free di
 ## Roadmap
 
 - **Keyboard.** Long-press accents, a smoother first hand-off, and maybe next-word prediction with an on-device model.
-- **Stronger on-device tidy.** Try an optional open model (downloaded like the speech models) for better cleanup, still on the phone.
 - **A plain privacy panel** in the app and on the site.
 
 ## Build it
@@ -92,7 +92,7 @@ Debug launch arguments (Product → Scheme → Edit Scheme → Run → Arguments
 | `Tools` | the app icon generator |
 | `docs/` | explainers for the match score and voice check |
 
-Libraries: [WhisperKit](https://github.com/argmaxinc/WhisperKit) (MIT) and [FluidAudio](https://github.com/FluidInference/FluidAudio) (Apache 2.0), running NVIDIA's Parakeet and OpenAI's Whisper models.
+Libraries: [WhisperKit](https://github.com/argmaxinc/WhisperKit) (MIT) and [FluidAudio](https://github.com/FluidInference/FluidAudio) (Apache 2.0), running NVIDIA's Parakeet and OpenAI's Whisper models; [mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm) (MIT) and [swift-transformers](https://github.com/huggingface/swift-transformers) (Apache 2.0), running Alibaba's Qwen models (Apache 2.0). Building needs Xcode's Metal toolchain (`xcodebuild -downloadComponent MetalToolchain`).
 
 ## License
 
