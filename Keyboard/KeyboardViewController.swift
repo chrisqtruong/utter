@@ -1,50 +1,61 @@
 import UIKit
 import AudioToolbox
-import SwiftUI
-import Observation
 
-/// The Utter keyboard: a marker-dot mic, plus globe, space, delete and return.
-/// Keyboards can't use the microphone, so the first tap opens the Utter app, which listens
-/// in the background; after that the mic button starts and stops it from here, and the text
-/// the app hears comes back through the shared App Group store to be typed.
-final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedback {
-    /// Lets key presses play the system click, when the person has keyboard clicks on.
-    var enableInputClicksWhenVisible: Bool { true }
+/// The Utter keyboard: a full set of keys for quick fixes, plus a marker-dot mic.
+/// Keyboards can't use the microphone, so the first mic tap opens the Utter app, which listens
+/// in the background; after that the mic starts and stops it from here, and the text the app
+/// hears comes back through the shared App Group store to be typed.
+final class KeyboardViewController: UIInputViewController {
+    private let keys = KeysView()
+    private var heightConstraint: NSLayoutConstraint?
     private let tapFeel = UIImpactFeedbackGenerator(style: .light)
-    private let micFeel = UIImpactFeedbackGenerator(style: .medium)
 
-    private let model = KeyboardModel()
     private var changed: DarwinObserver?
     private var ackObserver: DarwinObserver?
     private var waitingForAck = false
+    private var lastSpace = Date.distantPast
+    private let suggester = Suggester()
+    /// The last correction space made, so delete right after it can put the typed word back.
+    private var lastFix: (typed: String, fixed: String)?
+    /// listening, writing, or a note from the app: shown in the top bar instead of suggestions
+    private var busyStatus: String?
+    /// a quiet hint for when there's nothing to suggest
+    private var hint: String?
+    /// The latest suggestions and correction, worked out in the background for `word`.
+    private var cached: (word: String, fix: String?)?
+    private var ticket = 0
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        model.hasFullAccess = hasFullAccess
-        model.showGlobe = needsInputModeSwitchKey
-        model.onMic = { [weak self] in self?.micFeel.impactOccurred(); AudioServicesPlaySystemSound(1520); self?.micTapped() }
-        model.onType = { [weak self] text in self?.keyFeedback(); self?.textDocumentProxy.insertText(text) }
-        model.onDelete = { [weak self] in self?.keyFeedback(); self?.textDocumentProxy.deleteBackward() }
-        model.onGlobe = { [weak self] in self?.keyFeedback(); self?.advanceToNextInputMode() }
-
-        let host = UIHostingController(rootView: KeyboardView(model: model))
-        host.view.backgroundColor = .clear
-        addChild(host)
-        view.addSubview(host.view)
-        host.view.translatesAutoresizingMaskIntoConstraints = false
+        keys.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(keys)
+        let height = view.heightAnchor.constraint(equalToConstant: KeysView.height(compact: false))
+        height.priority = UILayoutPriority(999)
+        heightConstraint = height
         NSLayoutConstraint.activate([
-            host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            host.view.topAnchor.constraint(equalTo: view.topAnchor),
-            host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            view.heightAnchor.constraint(equalToConstant: 246),
+            keys.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            keys.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            keys.topAnchor.constraint(equalTo: view.topAnchor),
+            keys.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            height,
         ])
-        host.didMove(toParent: self)
+
+        keys.onFeedback = { [weak self] in self?.feedback() }
+        keys.onText = { [weak self] text in self?.type(text) }
+        keys.onSpace = { [weak self] in self?.space() }
+        keys.onDelete = { [weak self] word in self?.delete(word: word) }
+        keys.onCursor = { [weak self] by in self?.textDocumentProxy.adjustTextPosition(byCharacterOffset: by) }
+        keys.onGlobe = { [weak self] in self?.advanceToNextInputMode() }
+        keys.onMic = { [weak self] in self?.micTapped() }
+        keys.onSuggestion = { [weak self] i in self?.pick(i) }
+        requestSupplementaryLexicon { [weak self] lexicon in self?.suggester.use(lexicon) }
+        suggester.warmUp()
 
         changed = DarwinObserver(KeyboardLink.changed) { [weak self] in KeyboardLink.log("kb", "changed received"); self?.refresh() }
-        KeyboardLink.log("kb", "loaded, fullAccess=\(hasFullAccess)")
         ackObserver = DarwinObserver(KeyboardLink.ack) { [weak self] in KeyboardLink.log("kb", "ack received"); self?.waitingForAck = false }
-        tapFeel.prepare(); micFeel.prepare()
+        KeyboardLink.log("kb", "loaded, fullAccess=\(hasFullAccess)")
+        tapFeel.prepare()
+        load()
     }
 
     /// iOS can keep an old copy of the keyboard alive (from before you switched apps) next to the
@@ -54,7 +65,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         onScreen = true
-        model.hasFullAccess = hasFullAccess
+        keys.showGlobe = needsInputModeSwitchKey
+        refreshTextTraits()
         refresh()
     }
 
@@ -69,18 +81,212 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         onScreen = false
     }
 
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        // landscape gets shorter keys, like the regular keyboard
+        let compact = view.bounds.width > 500
+        if keys.compact != compact {
+            keys.compact = compact
+            heightConstraint?.constant = KeysView.height(compact: compact)
+        }
+    }
+
+    override func textDidChange(_ textInput: UITextInput?) {
+        super.textDidChange(textInput)
+        refreshTextTraits()
+    }
+
+    // MARK: Typing
+
+    private func type(_ text: String) {
+        lastFix = nil
+        textDocumentProxy.insertText(text)
+        afterChange()
+    }
+
+    /// After every change: capitals, then fresh suggestions.
+    private func afterChange() {
+        autoCapitalize()
+        updateSuggestions()
+    }
+
+    private var currentWord: String {
+        let before = textDocumentProxy.documentContextBeforeInput ?? ""
+        return String(before.reversed().prefix { $0.isLetter || $0 == "'" || $0 == "’" }.reversed())
+    }
+
+    /// Suggestions and corrections are off where they'd get in the way: web addresses, email,
+    /// and fields that ask for none.
+    private var helpsHere: Bool {
+        let p = textDocumentProxy
+        if p.autocorrectionType == .no || p.spellCheckingType == .no { return false }
+        return ![UIKeyboardType.URL, .emailAddress, .numberPad, .phonePad, .decimalPad, .asciiCapableNumberPad].contains(p.keyboardType ?? .default)
+    }
+
+    /// Works out suggestions in the background; shows them when they're ready, if the word hasn't changed.
+    private func updateSuggestions() {
+        let word = helpsHere ? currentWord : ""
+        ticket += 1
+        let mine = ticket
+        guard !word.isEmpty else {
+            cached = nil
+            keys.suggestions = []
+            keys.bestSuggestion = nil
+            applyTopBar()
+            return
+        }
+        let suggester = self.suggester
+        suggester.queue.async { [weak self] in
+            let result = suggester.suggest(for: word)
+            let fix = suggester.correction(for: word)
+            DispatchQueue.main.async {
+                guard let self, mine == self.ticket else { return }
+                self.cached = (word, fix)
+                self.keys.suggestions = result.words
+                self.keys.bestSuggestion = result.best
+                self.applyTopBar()
+            }
+        }
+    }
+
+    private func applyTopBar() {
+        keys.status = busyStatus ?? (keys.suggestions.isEmpty ? hint : nil)
+    }
+
+    /// Tapping a suggestion swaps it in for the word being typed. The first slot keeps the word as typed.
+    private func pick(_ i: Int) {
+        let word = currentWord
+        guard i < keys.suggestions.count else { return }
+        var choice = keys.suggestions[i]
+        if i == 0 {
+            choice = word
+            suggester.keep(word)
+        }
+        for _ in word { textDocumentProxy.deleteBackward() }
+        textDocumentProxy.insertText(choice + " ")
+        lastFix = nil
+        lastSpace = Date()
+        afterChange()
+    }
+
+    /// Two spaces after a word make ". ", like the regular keyboard.
+    private func space() {
+        let before = textDocumentProxy.documentContextBeforeInput ?? ""
+        // a small fix for the word just finished ("teh" → "the"), unless the field asks for none
+        let word = currentWord
+        // only a fix that's already worked out: space never waits on the spell checker
+        if helpsHere, let c = cached, c.word == word, let fix = c.fix, fix != word {
+            for _ in word { textDocumentProxy.deleteBackward() }
+            textDocumentProxy.insertText(fix + " ")
+            lastFix = (word, fix)
+            lastSpace = Date()
+            afterChange()
+            return
+        }
+        lastFix = nil
+        let quick = Date().timeIntervalSince(lastSpace) < 1.5
+        if quick, before.hasSuffix(" "), let prev = before.dropLast().last, prev.isLetter || prev.isNumber {
+            textDocumentProxy.deleteBackward()
+            textDocumentProxy.insertText(". ")
+            lastSpace = .distantPast
+        } else {
+            textDocumentProxy.insertText(" ")
+            lastSpace = Date()
+        }
+        afterChange()
+    }
+
+    private func delete(word: Bool) {
+        // delete right after a correction puts back what was typed, and leaves it alone from then on
+        if !word, let fix = lastFix, (textDocumentProxy.documentContextBeforeInput ?? "").hasSuffix(fix.fixed + " ") {
+            for _ in 0..<(fix.fixed.count + 1) { textDocumentProxy.deleteBackward() }
+            textDocumentProxy.insertText(fix.typed)
+            suggester.keep(fix.typed)
+            lastFix = nil
+            afterChange()
+            return
+        }
+        lastFix = nil
+        if word {
+            // the spaces before the cursor, then the word before them
+            let before = textDocumentProxy.documentContextBeforeInput ?? ""
+            var count = 0
+            var seenWord = false
+            for ch in before.reversed() {
+                if ch.isWhitespace { if seenWord { break } } else { seenWord = true }
+                count += 1
+            }
+            for _ in 0..<max(count, 1) { textDocumentProxy.deleteBackward() }
+        } else {
+            textDocumentProxy.deleteBackward()
+        }
+        afterChange()
+    }
+
+    /// Capital letter at the start of a sentence (or wherever the text field asks for one).
+    private func autoCapitalize() {
+        guard keys.shift != .locked else { return }
+        let before = textDocumentProxy.documentContextBeforeInput ?? ""
+        let on: Bool
+        switch textDocumentProxy.autocapitalizationType ?? .sentences {
+        case .none: on = false
+        case .allCharacters: on = true
+        case .words: on = before.isEmpty || before.last?.isWhitespace == true
+        default:
+            let trimmed = before.reversed().drop { $0 == " " }
+            on = before.isEmpty || before.hasSuffix("\n")
+                || (before.hasSuffix(" ") && (trimmed.first.map { ".!?".contains($0) } ?? true))
+        }
+        keys.shift = on ? .on : .off
+    }
+
+    private func refreshTextTraits() {
+        let titles: [UIReturnKeyType: String] = [.go: "go", .search: "search", .send: "send", .done: "done",
+                                                 .next: "next", .join: "join", .route: "route", .continue: "continue",
+                                                 .google: "search", .yahoo: "search"]
+        keys.returnTitle = titles[textDocumentProxy.returnKeyType ?? .default]
+        afterChange()
+    }
+
     /// A light tap and the system click, like the regular keyboard. (Keyboards can only make
     /// haptics with Full Access on; the click follows the person's keyboard-clicks setting.)
-    private func keyFeedback() {
-        tapFeel.impactOccurred()
-        AudioServicesPlaySystemSound(1519)   // the light "peek" tap; works in keyboards when UIKit's haptics don't
+    private func feedback() {
+        if keys.micState == .listening {
+            AudioServicesPlaySystemSound(1519)   // UIKit's haptics go quiet while the mic is recording
+        } else {
+            tapFeel.impactOccurred()
+            tapFeel.prepare()
+        }
         UIDevice.current.playInputClick()
-        tapFeel.prepare()
+    }
+
+    // MARK: The app link
+
+    /// Reads what the app has shared: the theme and the mic's state.
+    private func load() {
+        let d = KeyboardLink.read()
+        if let saved = d[KeyboardLink.Key.theme] as? [String], saved.count == 6 { keys.colors = KeysView.Colors(saved) }
+        let state = KeyboardLink.sessionAlive ? (KeyboardLink.State(rawValue: d[KeyboardLink.Key.state] as? String ?? "") ?? .off) : .off
+        keys.micState = state
+        busyStatus = nil
+        if let note = d[KeyboardLink.Key.note] as? String {
+            busyStatus = note.lowercased()
+            keys.statusIsNote = true
+        } else {
+            keys.statusIsNote = false
+            switch state {
+            case .listening: busyStatus = "listening… tap the mic when you’re done"
+            case .writing: busyStatus = "writing it down…"
+            case .ready: hint = "mic on · tap to talk"
+            case .off: hint = "tap the mic to talk"
+            }
+        }
+        applyTopBar()
     }
 
     /// Reads what the app has shared, and types any new text it heard.
     private func refresh() {
-        model.load()
+        load()
         guard hasFullAccess, onScreen, view.window != nil else { return }
         let d = KeyboardLink.read()
         let mine = UserDefaults.standard   // the keyboard's own memory of what it already typed
@@ -96,11 +302,20 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let spacer = before.isEmpty || before.hasSuffix(" ") || before.hasSuffix("\n") ? "" : " "
         textDocumentProxy.insertText(spacer + text)
         KeyboardLink.log("kb", "typed \(text.count) chars")
+        afterChange()
     }
 
     /// Asks the app to start or stop. If it answers, stay here; if not (no session), open it.
     private func micTapped() {
-        guard hasFullAccess else { model.note = "Turn on Allow Full Access first (see below)."; return }
+        guard hasFullAccess else {
+            busyStatus = "turn on allow full access: settings → general → keyboard → keyboards → utter"
+            keys.statusIsNote = true
+            applyTopBar()
+            return
+        }
+        // a second tap while the first is still on its way would open the app twice
+        guard !waitingForAck else { KeyboardLink.log("kb", "mic tapped again while waiting, ignored"); return }
+        AudioServicesPlaySystemSound(1520)
         waitingForAck = true
         KeyboardLink.log("kb", "mic tapped, sent toggle")
         KeyboardLink.post(KeyboardLink.toggle)
@@ -118,7 +333,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         let selector = NSSelectorFromString("openURL:options:completionHandler:")
         var responder: UIResponder? = self
         while let current = responder {
-            if current.responds(to: selector), NSStringFromClass(type(of: current)).contains("Application") {
+            if current.responds(to: selector), NSStringFromClass(Swift.type(of: current)).contains("Application") {
                 typealias Open = @convention(c) (AnyObject, Selector, NSURL, NSDictionary, AnyObject?) -> Void
                 let open = unsafeBitCast(current.method(for: selector), to: Open.self)
                 open(current, selector, url, NSDictionary(), nil)
@@ -126,114 +341,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
             }
             responder = current.next
         }
-        model.note = "Open the Utter app once, then come back."
-    }
-}
-
-@Observable
-final class KeyboardModel {
-    var state: KeyboardLink.State = .off
-    var note: String?
-    var hasFullAccess = false
-    var showGlobe = true
-    var colors = ["#323437", "#e2b714", "#646669", "#2c2e31", "#d1d0c5", "#ca4754"]
-
-    var onMic: () -> Void = {}
-    var onType: (String) -> Void = { _ in }
-    var onDelete: () -> Void = {}
-    var onGlobe: () -> Void = {}
-
-    func load() {
-        let d = KeyboardLink.read()
-        state = KeyboardLink.sessionAlive ? (KeyboardLink.State(rawValue: d[KeyboardLink.Key.state] as? String ?? "") ?? .off) : .off
-        note = d[KeyboardLink.Key.note] as? String
-        if let saved = d[KeyboardLink.Key.theme] as? [String], saved.count == 6 { colors = saved }
-    }
-}
-
-struct KeyboardView: View {
-    let model: KeyboardModel
-
-    private var bg: Color { Color(hex: model.colors[0]) }
-    private var main: Color { Color(hex: model.colors[1]) }
-    private var sub: Color { Color(hex: model.colors[2]) }
-    private var alt: Color { Color(hex: model.colors[3]) }
-    private var text: Color { Color(hex: model.colors[4]) }
-    private var error: Color { Color(hex: model.colors[5]) }
-
-    private var status: String {
-        if !model.hasFullAccess { return "allow full access to use utter" }
-        if let note = model.note { return note.lowercased() }
-        switch model.state {
-        case .off: return "tap to talk"
-        case .ready: return "tap to talk"
-        case .listening: return "listening… tap when you’re done"
-        case .writing: return "writing it down…"
-        }
-    }
-
-    var body: some View {
-        VStack(spacing: 10) {
-            Text(status)
-                .font(.system(size: 13, design: .monospaced))
-                .foregroundStyle(model.note != nil ? error : sub)
-                .lineLimit(2).multilineTextAlignment(.center)
-                .padding(.top, 10)
-                .padding(.horizontal, 16)
-
-            Spacer(minLength: 0)
-
-            // the mic sits centered in the space between the status line and the keys
-            Button(action: model.onMic) {
-                ZStack {
-                    MarkerDot().fill(Color.black.opacity(0.16)).offset(y: 3)
-                    MarkerDot().fill(model.state == .listening ? error : main)
-                    Image(systemName: model.state == .listening ? "stop.fill" : "mic.fill")
-                        .font(.system(size: 29, weight: .bold))
-                        .foregroundStyle(bg)
-                }
-                .frame(width: 92, height: 92)
-                .opacity(model.state == .writing ? 0.45 : 1)
-            }
-            .buttonStyle(.plain)
-            .disabled(model.state == .writing)
-            .accessibilityLabel(model.state == .listening ? "Stop dictating" : "Start dictating")
-
-            if !model.hasFullAccess {
-                Text("Settings → General → Keyboard → Keyboards → Utter → Allow Full Access")
-                    .font(.system(size: 11)).foregroundStyle(sub)
-                    .multilineTextAlignment(.center).padding(.horizontal, 16)
-            }
-
-            Spacer(minLength: 0)
-
-            HStack(spacing: 8) {
-                if model.showGlobe {
-                    key(Image(systemName: "globe"), label: "Next keyboard", action: model.onGlobe)
-                }
-                Button { model.onType(" ") } label: {
-                    Text("space").font(.system(size: 15, design: .monospaced)).foregroundStyle(text)
-                        .frame(maxWidth: .infinity, minHeight: 42)
-                        .background(alt, in: RoundedRectangle(cornerRadius: 8))
-                }
-                .buttonStyle(.plain)
-                key(Image(systemName: "delete.left"), label: "Delete", action: model.onDelete)
-                key(Image(systemName: "return"), label: "Return") { model.onType("\n") }
-            }
-            .padding(.horizontal, 8)
-            .padding(.bottom, 6)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(bg)
-    }
-
-    private func key(_ icon: Image, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            icon.font(.system(size: 17)).foregroundStyle(text)
-                .frame(width: 52, height: 42)
-                .background(alt, in: RoundedRectangle(cornerRadius: 8))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
+        busyStatus = "open the utter app once, then come back"
+        keys.statusIsNote = true
+        applyTopBar()
     }
 }

@@ -19,7 +19,9 @@ Inspired by [SpeakType](https://github.com/karansinghgit/speaktype), the free di
 - **Knows when nothing was said.** An accidental tap or silence comes back right away, without waking the model.
 
 **Keyboard (early)**
-- **Dictate into any app.** Add the Utter keyboard (Settings → General → Keyboard → Keyboards, then turn on Allow Full Access). Tap its mic: the first time, Utter opens and starts listening; go back with the "← Back" link and talk. Tap again and the text types itself in. For two minutes after that, the mic starts and stops right from the keyboard (the mic dot stays on meanwhile, since iOS only lets an app turn the mic on while it is on screen).
+- **A real keyboard, with a mic.** Add the Utter keyboard (Settings → General → Keyboard → Keyboards, then turn on Allow Full Access). It has full letters, numbers and symbols for quick fixes, built for speed: keys react on touch-down, the nearest key wins, a second finger finishes the first, and there's a letter popup, auto-capitals, double-space for a period, hold-to-delete (letters, then words) and hold-space to move the cursor. The mic sits in the bar above the keys.
+- **Suggestions, on the phone.** Three suggestions as you type, small fixes on space ("teh" → "the"), your text replacements and contact names, and delete right after a fix to undo it. They come from Apple's built-in spell checker, so nothing is sent anywhere. No swipe typing or next-word prediction yet.
+- **Dictate into any app.** Tap the mic: the first time, Utter opens and starts listening; go back and talk, then tap again and the text types itself in. For two minutes after that, the mic starts and stops right from the keyboard (the mic dot stays on meanwhile, since iOS only lets an app turn the mic on while it is on screen).
 - **Go back to.** In Settings → Keyboard, pick the app you dictate into most (Notes, Messages, Slack…). After the keyboard opens Utter, it starts listening and jumps straight back there. iOS doesn't tell apps where you came from, so it's one fixed choice.
 - **How:** iOS doesn't let keyboards use the microphone, so the app listens in a background session and passes the text back through a shared App Group file. The keyboard asks the app to start or stop, and only opens it if no session is running.
 
@@ -56,7 +58,9 @@ Inspired by [SpeakType](https://github.com/karansinghgit/speaktype), the free di
 
 ## Roadmap
 
-- **Keyboard: polish.** A basic Utter keyboard works now (see above). Next: letter keys, hold to delete, and a smoother first hand-off.
+- **Keyboard.** Long-press accents, a smoother first hand-off, and maybe next-word prediction with an on-device model.
+- **Stronger on-device tidy.** Try an optional open model (downloaded like the speech models) for better cleanup, still on the phone.
+- **A plain privacy panel** in the app and on the site.
 
 ## Build it
 
@@ -83,7 +87,7 @@ Debug launch arguments (Product → Scheme → Edit Scheme → Run → Arguments
 | `Utter/Views` | screens, plus `Marker.swift` (the hand-drawn shapes) and `Page.swift` (the settings building blocks) |
 | `Utter/Intents` | the Action button and Shortcuts action |
 | `Broadcast` | the screen recording add-on for "what's playing" |
-| `Keyboard` | the Utter keyboard (mic, globe, space, delete, return) |
+| `Keyboard` | the Utter keyboard: keys and touch handling (`KeysView`), suggestions (`Suggestions`), and the link to the app |
 | `Shared` | how the app and keyboard talk (`KeyboardLink`) |
 | `Tools` | the app icon generator |
 | `docs/` | explainers for the match score and voice check |
