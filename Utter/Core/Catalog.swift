@@ -48,7 +48,7 @@ enum Catalog {
         SpeechModel(id: "openai_whisper-large-v3-v20240930_626MB", name: "Whisper Large v3 Turbo", family: .whisper, megabytes: 630,
                     languages: "99 languages",
                     pro: "most accurate for other languages and strong accents",
-                    con: "slower than Parakeet and the biggest download; more battery on long notes"),
+                    con: "slower than Parakeet; the biggest download"),
     ]
 
     static func model(_ id: String?) -> SpeechModel? {
