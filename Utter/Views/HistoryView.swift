@@ -1,6 +1,25 @@
 import SwiftUI
 
 struct HistoryView: View {
+    /// One list of places for the whole stack (notes and the archive), so they never get mixed up.
+    @State private var path = NavigationPath()
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            HistoryList(archive: false, openArchive: { path.append(ArchiveRoute()) })
+                .navigationDestination(for: Dictation.self) { DictationDetail(item: $0) }
+                .navigationDestination(for: ArchiveRoute.self) { _ in HistoryList(archive: true) }
+        }
+    }
+}
+
+private struct ArchiveRoute: Hashable {}
+
+/// History, or the archive: the same list, search, filters and select mode.
+/// Swipe right to archive (or unarchive) or copy; swipe left to delete, after asking.
+struct HistoryList: View {
+    let archive: Bool
+    var openArchive: () -> Void = {}
     @Environment(History.self) private var history
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
@@ -43,11 +62,14 @@ struct HistoryView: View {
 
     private var filtered: [Dictation] {
         let query = search.trimmingCharacters(in: .whitespaces)
-        return history.items.filter { item in
+        return pool.filter { item in
             range.contains(item.date) && (query.isEmpty || item.text.localizedCaseInsensitiveContains(query)
                                            || (item.title?.localizedCaseInsensitiveContains(query) ?? false))
         }
     }
+
+    /// history shows what isn't archived; the archive shows what is
+    private var pool: [Dictation] { history.items.filter { $0.isArchived == archive } }
 
     private var days: [(String, [Dictation])] {
         var out: [(String, [Dictation])] = []
@@ -59,30 +81,30 @@ struct HistoryView: View {
     }
 
     var body: some View {
-        NavigationStack {
             Group {
-                if history.items.isEmpty {
+                if pool.isEmpty && (archive || history.archivedCount == 0) {
                     ContentUnavailableView {
-                        Label("Nothing yet", systemImage: "text.bubble")
+                        Label(archive ? "Nothing archived" : "Nothing yet", systemImage: archive ? "archivebox" : "text.bubble")
                     } description: {
-                        Text("Your dictations show up here. Only the text is kept, never the recording.")
+                        Text(archive ? "Swipe right on a note in history to archive it." : "Your dictations show up here. Only the text is kept, never the recording.")
                     }
                     .foregroundStyle(theme.sub)
                 } else {
                     List(selection: $selection) {
                         if days.isEmpty {
-                            Text(search.isEmpty ? "Nothing from \(range.label)." : "No dictations match “\(search)”.")
+                            Text(pool.isEmpty ? "Everything's archived." : search.isEmpty ? "Nothing from \(range.label)." : "No dictations match “\(search)”.")
                                 .foregroundStyle(theme.sub)
                                 .listRowBackground(Color.clear)
                         }
                         ForEach(days, id: \.0) { day, items in
                             Section {
                                 ForEach(items) { item in
-                                    NavigationLink(value: item) { HistoryRow(item: item, highlight: search) }
-                                        .themedRow(theme)
-                                }
-                                .onDelete { offsets in
-                                    history.delete(Set(offsets.map { items[$0].id }))
+                                    NavigationLink(value: item) {
+                                        HistoryRow(item: item, highlight: search,
+                                                   onArchive: { withAnimation { history.setArchived([item.id], !archive) } },
+                                                   onDelete: { confirmDelete = [item.id] })
+                                    }
+                                    .themedRow(theme)
                                 }
                             } header: {
                                 HStack {
@@ -99,21 +121,24 @@ struct HistoryView: View {
                     .safeAreaInset(edge: .top, spacing: 0) {
                         filterBar.background(theme.bg)
                     }
-                    .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search your words")
+                    .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: archive ? "Search the archive" : "Search your words")
                     .environment(\.editMode, .constant(selecting ? .active : .inactive))
                     .safeAreaInset(edge: .bottom, spacing: 0) { if selecting { selectionBar } }
                 }
             }
             .themedList(theme)
-            .navigationTitle("History")
+            .navigationTitle(archive ? "Archive" : "History")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: Dictation.self) { DictationDetail(item: $0) }
+            .modifier(ArchiveBack(on: archive && !selecting))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    if !selecting {
+                    if !selecting && !archive {
                         Menu {
                             Button("Transcribe a file", systemImage: "doc.badge.plus") { importingFile = true }
                             Button("Transcribe what's playing", systemImage: "play.rectangle") { broadcastTrigger += 1 }
+                            if history.archivedCount > 0 {
+                                Button("Archive · \(history.archivedCount)", systemImage: "archivebox") { openArchive() }
+                            }
                             if !history.items.isEmpty {
                             Divider()
                             Button("Select", systemImage: "checkmark.circle") { withAnimation { selecting = true } }
@@ -136,6 +161,8 @@ struct HistoryView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     if selecting {
                         Button("Cancel") { withAnimation { selecting = false; selection = [] } }
+                    } else if archive {
+                        if !pool.isEmpty { Button("Select") { withAnimation { selecting = true } } }
                     } else {
                         Button("Done") { dismiss() }
                     }
@@ -145,9 +172,9 @@ struct HistoryView: View {
             .confirmationDialog("Clear all \(history.items.count) dictations?", isPresented: $confirmClear, titleVisibility: .visible) {
                 Button("Clear all", role: .destructive) { history.clear() }
             } message: {
-                Text("This can't be undone. Export them first if you want a copy.")
+                Text("This can't be undone, and it includes the archive. Export them first if you want a copy.")
             }
-            .confirmationDialog("Delete \(confirmDelete?.count ?? 0) dictations?",
+            .confirmationDialog(confirmDelete?.count == 1 ? "Delete this note?" : "Delete \(confirmDelete?.count ?? 0) notes?",
                                 isPresented: Binding(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }),
                                 titleVisibility: .visible) {
                 Button("Delete", role: .destructive) {
@@ -165,12 +192,11 @@ struct HistoryView: View {
                 dismiss()   // back home, where the text shows up
                 Task { await dictator.transcribeFile(url) }
             }
-        }
     }
 
     private var isFiltered: Bool { range != .all || !search.trimmingCharacters(in: .whitespaces).isEmpty }
 
-    /// While selecting: pick all shown, or delete the chosen ones.
+    /// While selecting: pick all shown, then archive (or unarchive) or delete the chosen ones.
     private var selectionBar: some View {
         HStack {
             let allShown = Set(filtered.map(\.id))
@@ -179,6 +205,16 @@ struct HistoryView: View {
             }
             .font(.mono(14)).foregroundStyle(theme.sub)
             Spacer()
+            Button {
+                withAnimation { history.setArchived(selection, !archive) }
+                selection = []; selecting = false
+            } label: {
+                Text(archive ? "unarchive" : "archive").font(.mono(15))
+            }
+            .foregroundStyle(theme.text)
+            .disabled(selection.isEmpty)
+            .opacity(selection.isEmpty ? 0.4 : 1)
+            .padding(.trailing, 14)
             Button { confirmDelete = selection } label: {
                 Text(selection.isEmpty ? "delete" : "delete \(selection.count)").font(.mono(15, .semibold))
             }
@@ -249,6 +285,8 @@ struct HistoryView: View {
 private struct HistoryRow: View {
     let item: Dictation
     var highlight = ""
+    var onArchive: () -> Void = {}
+    var onDelete: () -> Void = {}
     @Environment(\.theme) private var theme
 
     /// The text with your search words highlighted.
@@ -293,12 +331,22 @@ private struct HistoryRow: View {
             .foregroundStyle(theme.sub)
         }
         .padding(.vertical, 4)
-        .swipeActions(edge: .leading) {
+        // swipe right: archive (a full swipe) or copy. swipe left: delete, after asking.
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            Button(item.isArchived ? "Unarchive" : "Archive", systemImage: item.isArchived ? "tray.and.arrow.up" : "archivebox") {
+                onArchive()
+                Haptics.tap()
+            }
+            .tint(theme.main)
             Button("Copy", systemImage: "doc.on.doc") {
                 UIPasteboard.general.string = item.text
                 Haptics.tap()
             }
-            .tint(theme.main)
+            .tint(theme.sub)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button("Delete", systemImage: "trash") { onDelete() }
+                .tint(theme.error)
         }
     }
 }
@@ -311,6 +359,7 @@ struct DictationDetail: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showScoreInfo = false
     @State private var editing = false
+    @State private var confirmDelete = false
 
     /// The live copy from history, so edits show up right away.
     private var current: Dictation { history.items.first { $0.id == item.id } ?? item }
@@ -349,14 +398,23 @@ struct DictationDetail: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !editing {
                 ResultActions(dictation: item, onScoreInfo: { showScoreInfo = true }) {
-                    Button(role: .destructive) {
-                        history.delete([item.id])
+                    Button {
+                        history.setArchived([item.id], !item.isArchived)
+                        Haptics.tap()
                         dismiss()
-                    } label: { Image(systemName: "trash") }
+                    } label: { Image(systemName: item.isArchived ? "tray.and.arrow.up" : "archivebox") }
+                        .accessibilityLabel(item.isArchived ? "Unarchive" : "Archive")
+                    Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
                         .accessibilityLabel("Delete")
                 }
             }
         }
+        .confirmationDialog("Delete this note?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                history.delete([item.id])
+                dismiss()
+            }
+        } message: { Text("This can't be undone.") }
         .sheet(isPresented: $showScoreInfo) {
             NavigationStack { ScoreInfoView(inSheet: true) }.environment(\.theme, theme).tint(theme.main).presentationDetents([.medium, .large])
         }
@@ -384,5 +442,13 @@ struct HistoryExport: Transferable {
             out += "\n### \(item.date.shortTime)\(item.title.map { " · \($0)" } ?? "")\n\n\(item.text)\n"
         }
         return out
+    }
+}
+
+/// The archive gets the hand-drawn back arrow; history itself is a sheet with Done.
+private struct ArchiveBack: ViewModifier {
+    let on: Bool
+    func body(content: Content) -> some View {
+        if on { content.handDrawnBack() } else { content }
     }
 }

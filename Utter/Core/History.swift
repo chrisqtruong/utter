@@ -35,6 +35,9 @@ struct Dictation: Codable, Identifiable, Hashable {
     /// Set once "tidy automatically" has had its one go at this note, so undoing back to what
     /// you said doesn't tidy it again.
     var autoTidyDone: Bool?
+    /// Moved out of history into the archive. Still searchable there, still counted in stats.
+    var archived: Bool?
+    var isArchived: Bool { archived == true }
     /// True when "tidy automatically" made the current tidy (not a tap).
     var autoTidied: Bool?
     /// The text is exactly what tidy made, with no edits since.
@@ -131,6 +134,13 @@ final class History {
         items[i].title = title
         save()
     }
+
+    func setArchived(_ ids: Set<UUID>, _ on: Bool) {
+        for i in items.indices where ids.contains(items[i].id) { items[i].archived = on ? true : nil }
+        save()
+    }
+
+    var archivedCount: Int { items.filter(\.isArchived).count }
 
     func delete(_ ids: Set<UUID>) {
         items.removeAll { ids.contains($0.id) }

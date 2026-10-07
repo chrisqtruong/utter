@@ -44,6 +44,7 @@ Inspired by [SpeakType](https://github.com/karansinghgit/speaktype), the free di
 
 **Keeping it**
 - **History.** Searchable by text and by date: today, this week, this month, or any day. Export any set as one Markdown file for Notes, Files or Obsidian.
+- **Archive.** Swipe right on a note to archive it (or select several), and find them under History → ••• → Archive. Swipe left to delete, always after asking.
 - **Manage it.** Delete notes one at a time, several at once, or everything a search shows. Storage shows what takes room, and can keep notes for 30 days, 90 days, a year, or forever.
 - **Stats.** Words, time saved versus typing, talking speed, streak, and the week at a glance.
 
